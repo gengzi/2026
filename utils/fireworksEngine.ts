@@ -21,6 +21,14 @@ const PALETTES = {
   blue: ['#00BFFF', '#1E90FF', '#4169E1', '#0000FF', '#E0FFFF'],
   // Colorful (Traditional Fireworks Show)
   colorful: ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'],
+  
+  // NEW PALETTES
+  // Sunset (Warm, Romantic - Orange, Red, Magenta)
+  sunset: ['#FF4500', '#FF8C00', '#FFD700', '#C71585', '#FF1493'],
+  // Mint (Fresh, Cool - Light Green, Cyan, White)
+  mint: ['#98FF98', '#00FFFF', '#E0FFFF', '#7FFFD4', '#F0FFF0'],
+  // Cherry Blossom (Soft, Pink, White)
+  cherry: ['#FFB7C5', '#FFC0CB', '#FF69B4', '#FFF0F5', '#FF1493'],
 };
 
 /**
@@ -44,7 +52,8 @@ export const getTextPoints = (text: string, baseSize: number = 100): Point[] => 
   if (!ctx) return [];
 
   // Auto-scale font size based on text length to fit screen
-  const fontSize = Math.max(50, Math.min(baseSize, 800 / Math.max(2, text.length)));
+  // Reduced max font size slightly to ensure it fits well
+  const fontSize = Math.max(60, Math.min(baseSize, 750 / Math.max(2, text.length)));
   
   canvas.width = Math.max(800, text.length * fontSize + 200);
   canvas.height = 500;
@@ -60,12 +69,14 @@ export const getTextPoints = (text: string, baseSize: number = 100): Point[] => 
   const data = imageData.data;
   const points: Point[] = [];
   
-  // Optimization & Density Control
-  const step = fontSize > 100 ? 6 : 5; 
+  // HIGH DENSITY SAMPLING for clearer text
+  // Step 3 or 4 provides much solid text than 5 or 6
+  const step = 4; 
   
   for (let y = 0; y < canvas.height; y += step) {
     for (let x = 0; x < canvas.width; x += step) {
       const index = (y * canvas.width + x) * 4;
+      // Threshold check
       if (data[index + 3] > 128) {
         points.push({
           x: x - canvas.width / 2, 
@@ -115,12 +126,21 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
   const baseCount = 80; 
   const particleCount = shell.text ? 0 : Math.floor(baseCount * countMultiplier); 
   
-  // 1. Text Explosion
+  // 1. Text Explosion (Optimized for Clarity)
   if (shell.text) {
     const points = getTextPoints(shell.text, size === 'large' ? 140 : 100);
+    
+    // Explicitly choose bright colors for text readability
+    let textPalette = color;
+    if (color === 'random') {
+       // Prefer gold, silver, or mint for high contrast text
+       const highContrast = ['gold', 'silver', 'mint'];
+       textPalette = highContrast[Math.floor(Math.random() * highContrast.length)];
+    }
+
     points.forEach((pt) => {
-      // Density check
-      if (Math.random() > 0.92) return; 
+      // Very high density (keep almost all points)
+      if (Math.random() > 0.95) return; 
 
       const px = shell.x + pt.x;
       const py = shell.y + pt.y;
@@ -130,36 +150,36 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
         y: py,
         initialX: px,
         initialY: py,
-        holding: 45, 
-        vx: random(-0.2, 0.2) + shell.vx * 0.1, 
-        vy: random(-0.2, 0.2) + shell.vy * 0.1,
-        life: random(100, 180),
-        maxLife: 180,
-        color: pickColor(color), 
+        holding: 50, // Hold slightly longer
+        vx: (random(-0.1, 0.1) + shell.vx * 0.05), // Minimal drift
+        vy: (random(-0.1, 0.1) + shell.vy * 0.05),
+        life: random(180, 240), // Live longer
+        maxLife: 240,
+        color: pickColor(textPalette), 
         alpha: 1,
-        size: random(1.5, 2.5),
+        size: random(2.0, 3.5), // Larger particles
         type: 'text',
         shape: shape,
-        friction: 0.92, 
-        gravity: 0.015,
+        friction: 0.90, // Higher friction = stops moving faster = cleaner text
+        gravity: 0.002, // Very low gravity = doesn't sag
         flicker: true 
       });
     });
     
-    // Bang effect
-    for (let i = 0; i < 30; i++) { 
+    // Minimal Bang effect around text (so it doesn't obscure)
+    for (let i = 0; i < 15; i++) { 
        const angle = random(0, Math.PI * 2);
-       const speed = random(5, 20);
+       const speed = random(5, 15);
        particles.push({
          x: shell.x,
          y: shell.y,
          vx: Math.cos(angle) * speed,
          vy: Math.sin(angle) * speed,
-         life: random(20, 60),
-         maxLife: 60,
+         life: random(20, 40),
+         maxLife: 40,
          color: '#ffffff',
-         alpha: 1,
-         size: random(1, 4),
+         alpha: 0.8,
+         size: random(1, 3),
          type: 'spark',
          shape: 'circle',
          friction: 0.85, 
@@ -397,7 +417,7 @@ export const updatePhysics = (
     // Handle Holding State (Pre-Explosion Animation)
     if (p.holding && p.holding > 0 && p.initialX !== undefined && p.initialY !== undefined) {
        p.holding--;
-       const shakeIntensity = 1.2;
+       const shakeIntensity = 0.5; // Reduced shake for clarity
        p.x = p.initialX + (Math.random() - 0.5) * shakeIntensity;
        p.y = p.initialY + (Math.random() - 0.5) * shakeIntensity;
        p.alpha = 0.8 + Math.sin(Date.now() / 40) * 0.2; 
@@ -424,7 +444,7 @@ export const updatePhysics = (
        if (Math.random() > 0.5) {
          renderAlpha = p.alpha;
        } else {
-         renderAlpha = 0.2 * p.alpha;
+         renderAlpha = 0.4 * p.alpha; // Don't go fully dark, helps video recording
        }
     }
 

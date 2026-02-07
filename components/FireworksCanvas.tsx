@@ -8,6 +8,7 @@ import { getRandomHotWord } from '../data/hotWords';
 export interface FireworksCanvasHandle {
   launch: (x: number, y: number, text?: string, settings?: FireworkSettings) => void;
   autoLaunch: () => void;
+  triggerSpecial: (type: 'salvo' | 'strafe' | 'fan') => void;
   snapshot: () => string | null;
   recordVideo: (durationMs: number) => Promise<Blob | null>;
 }
@@ -54,7 +55,6 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
         
         const r = Math.random();
         let effect: FireworkEffect = 'classic';
-        // Increased diversity in auto-selection
         if (r > 0.90) effect = 'galaxy';
         else if (r > 0.80) effect = 'strobe';
         else if (r > 0.70) effect = 'double-ring';
@@ -69,6 +69,71 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
         };
 
         createShell(x, y, text, randomSettings);
+      }
+    },
+    triggerSpecial(type: 'salvo' | 'strafe' | 'fan') {
+      if (!canvasRef.current) return;
+      const w = canvasRef.current.width;
+      const h = canvasRef.current.height;
+
+      const colors = ['gold', 'red', 'silver', 'blue', 'colorful', 'sunset', 'mint', 'cherry'];
+      const randomColor = () => colors[Math.floor(Math.random() * colors.length)];
+
+      if (type === 'salvo') {
+        // 万箭齐发: 10-15 shots at once across screen
+        const count = 12;
+        const color = randomColor();
+        for (let i = 0; i < count; i++) {
+            const x = (w * 0.1) + ((w * 0.8) / count) * i;
+            const y = h * 0.2 + Math.random() * (h * 0.2); // Upper area
+            // Slight delay between each so it's not a single frame lag spike
+            setTimeout(() => {
+                createShell(x, y, undefined, {
+                    color: color,
+                    size: 'medium',
+                    shape: 'circle',
+                    effect: 'willow' // Willow looks best for salvo
+                });
+            }, i * 50);
+        }
+      } else if (type === 'strafe') {
+        // 扫射: Rapid fire left to right
+        const count = 20;
+        for (let i = 0; i < count; i++) {
+            setTimeout(() => {
+                const x = (w * 0.1) + ((w * 0.8) / count) * i;
+                const y = h * 0.3 + Math.sin(i * 0.5) * (h * 0.1); // Wave pattern
+                createShell(x, y, undefined, {
+                    color: randomColor(),
+                    size: 'small',
+                    shape: 'square',
+                    effect: 'strobe' // Strobe for machine gun feel
+                });
+            }, i * 80); // Fast timing
+        }
+      } else if (type === 'fan') {
+        // 五谷丰登: Fan out from center
+        const centerX = w / 2;
+        const count = 10;
+        const color = randomColor();
+        for (let i = 0; i < count; i++) {
+             // Calculate target based on angle
+             const angle = Math.PI + (Math.PI / (count - 1)) * i; // Semi-circle arch
+             const radius = h * 0.4;
+             // Map angle to screen coordinates roughly
+             const t = i / (count - 1);
+             const x = (w * 0.2) + (w * 0.6) * t;
+             const y = h * 0.2 + Math.abs(t - 0.5) * (h * 0.2);
+             
+             setTimeout(() => {
+                createShell(x, y, undefined, {
+                    color: color,
+                    size: 'large',
+                    shape: 'circle',
+                    effect: 'double-ring'
+                });
+             }, i * 100);
+        }
       }
     },
     snapshot() {
@@ -193,10 +258,10 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
 
     const loop = () => {
       // Clean Background Logic:
-      // Use source-over with a HIGH opacity background color to remove trails quickly.
-      // Opacity 0.45 ensures that past frames fade out very fast, leaving minimal traces.
+      // Increased opacity to 0.70 to create a sharper "fade" which looks better in video compression.
+      // Higher opacity = less trails, higher contrast.
       ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = 'rgba(2, 6, 23, 0.45)'; 
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.70)'; 
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Draw particles with additive blending for glow

@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { generateNewYearWishes } from '../services/geminiService';
-import { Sparkles, Send, Wand2, Info, Settings2, Palette, Box, Circle, Scaling, Volume2, VolumeX, Snowflake, Activity, Aperture, Star, Share2, Download, X, Copy, Camera, Video, Loader2, Zap, Disc } from 'lucide-react';
+import { Sparkles, Send, Wand2, Info, Settings2, Palette, Box, Circle, Scaling, Volume2, VolumeX, Snowflake, Activity, Aperture, Star, Share2, Download, X, Copy, Camera, Video, Loader2, Zap, Disc, Rocket, AlignJustify, Fan } from 'lucide-react';
 import { FireworkSettings, ParticleShape, FireworkSize, FireworkEffect } from '../types';
 import { toggleMute, getMuteState } from '../utils/soundEngine';
 
 interface UIOverlayProps {
   onLaunch: (text: string, settings: FireworkSettings) => void;
   onAutoFireToggle: (enabled: boolean) => void;
+  onTriggerSpecial: (type: 'salvo' | 'strafe' | 'fan') => void;
   getSnapshot: () => string | null;
   startVideoRecording: () => Promise<Blob | null>;
 }
@@ -31,6 +32,10 @@ const COLORS = [
   { name: '钛金银', value: 'silver', class: 'bg-gradient-to-r from-slate-200 to-slate-400' },
   { name: '冰川蓝', value: 'blue', class: 'bg-gradient-to-r from-blue-400 to-blue-600' },
   { name: '绚丽彩', value: 'colorful', class: 'bg-gradient-to-r from-green-400 via-red-400 to-purple-400' },
+  // New Palettes
+  { name: '日落', value: 'sunset', class: 'bg-gradient-to-r from-orange-500 via-red-500 to-pink-500' },
+  { name: '薄荷', value: 'mint', class: 'bg-gradient-to-r from-teal-300 via-cyan-300 to-green-200' },
+  { name: '樱花', value: 'cherry', class: 'bg-gradient-to-r from-pink-300 via-pink-400 to-rose-200' },
 ];
 
 const EFFECTS: {id: FireworkEffect, name: string, icon: React.ReactNode}[] = [
@@ -53,7 +58,7 @@ const dataURItoBlob = (dataURI: string) => {
   return new Blob([ab], { type: mimeString });
 };
 
-const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle, getSnapshot, startVideoRecording }) => {
+const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle, onTriggerSpecial, getSnapshot, startVideoRecording }) => {
   const [text, setText] = useState('');
   const [wishes, setWishes] = useState<string[]>(TEMPLATES);
   const [loading, setLoading] = useState(false);
@@ -406,6 +411,28 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle, getSn
           >
             {loading ? '思考中...' : <><Wand2 size={12} /> AI 祝福</>}
           </button>
+        </div>
+        
+        {/* SKILLS BAR */}
+        <div className="flex justify-center gap-2">
+             <button
+               onClick={() => onTriggerSpecial('strafe')}
+               className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-cyan-600/40 hover:bg-cyan-500/60 border border-cyan-400/30 text-cyan-100 text-xs backdrop-blur transition-all hover:scale-105"
+             >
+               <AlignJustify size={14} className="rotate-90" /> 极速扫射
+             </button>
+             <button
+               onClick={() => onTriggerSpecial('salvo')}
+               className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-purple-600/40 hover:bg-purple-500/60 border border-purple-400/30 text-purple-100 text-xs backdrop-blur transition-all hover:scale-105"
+             >
+               <Rocket size={14} /> 万箭齐发
+             </button>
+             <button
+               onClick={() => onTriggerSpecial('fan')}
+               className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-yellow-600/40 hover:bg-yellow-500/60 border border-yellow-400/30 text-yellow-100 text-xs backdrop-blur transition-all hover:scale-105"
+             >
+               <Fan size={14} /> 五谷丰登
+             </button>
         </div>
 
         <div className="relative group">

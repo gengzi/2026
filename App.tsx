@@ -61,6 +61,10 @@ function App() {
     }
   };
 
+  const handleTriggerSpecial = (type: 'salvo' | 'strafe' | 'fan') => {
+    fireworksRef.current?.triggerSpecial(type);
+  };
+
   const handleInteraction = () => {
     initAudio();
     resumeAudio();
@@ -95,6 +99,7 @@ function App() {
       <UIOverlay 
         onLaunch={handleLaunch} 
         onAutoFireToggle={handleAutoFireToggle}
+        onTriggerSpecial={handleTriggerSpecial}
         getSnapshot={handleGetSnapshot}
         startVideoRecording={handleStartVideoRecording}
       />
