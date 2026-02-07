@@ -1,13 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { generateNewYearWishes } from '../services/geminiService';
-import { Sparkles, Send, Wand2, Info, Settings2, Palette, Box, Circle, Scaling, Volume2, VolumeX, Snowflake, Activity, Aperture, Star } from 'lucide-react';
+import { Sparkles, Send, Wand2, Info, Settings2, Palette, Box, Circle, Scaling, Volume2, VolumeX, Snowflake, Activity, Aperture, Star, Share2, Download, X, Copy, Camera, Video, Loader2 } from 'lucide-react';
 import { FireworkSettings, ParticleShape, FireworkSize, FireworkEffect } from '../types';
 import { toggleMute, getMuteState } from '../utils/soundEngine';
 
 interface UIOverlayProps {
   onLaunch: (text: string, settings: FireworkSettings) => void;
   onAutoFireToggle: (enabled: boolean) => void;
+  getSnapshot: () => string | null;
+  startVideoRecording: () => Promise<Blob | null>;
 }
 
 const TEMPLATES = [
@@ -21,13 +23,14 @@ const TEMPLATES = [
   "前程似锦"
 ];
 
+// Updated Palettes to match engine
 const COLORS = [
   { name: '随机', value: 'random', class: 'bg-gradient-to-r from-pink-500 via-yellow-500 to-cyan-500' },
-  { name: '中国红', value: '#ef4444', class: 'bg-red-500' },
-  { name: '富贵金', value: '#fbbf24', class: 'bg-amber-400' },
-  { name: '星空蓝', value: '#3b82f6', class: 'bg-blue-500' },
-  { name: '翡翠绿', value: '#10b981', class: 'bg-emerald-500' },
-  { name: '紫气东来', value: '#a855f7', class: 'bg-purple-500' },
+  { name: '中国红', value: 'classic', class: 'bg-gradient-to-r from-red-600 to-yellow-400' },
+  { name: '赛博霓虹', value: 'cyber', class: 'bg-gradient-to-r from-cyan-400 to-purple-500' },
+  { name: '富贵金银', value: 'rich', class: 'bg-gradient-to-r from-yellow-300 to-slate-300' },
+  { name: '翡翠森林', value: 'jade', class: 'bg-gradient-to-r from-green-500 to-emerald-300' },
+  { name: '梦幻马卡龙', value: 'pastel', class: 'bg-gradient-to-r from-pink-300 to-blue-200' },
 ];
 
 const EFFECTS: {id: FireworkEffect, name: string, icon: React.ReactNode}[] = [
@@ -37,13 +40,33 @@ const EFFECTS: {id: FireworkEffect, name: string, icon: React.ReactNode}[] = [
   { id: 'galaxy', name: '星云', icon: <Activity size={14} /> },
 ];
 
-const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle }) => {
+const dataURItoBlob = (dataURI: string) => {
+  const byteString = atob(dataURI.split(',')[1]);
+  const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([ab], { type: mimeString });
+};
+
+const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle, getSnapshot, startVideoRecording }) => {
   const [text, setText] = useState('');
   const [wishes, setWishes] = useState<string[]>(TEMPLATES);
   const [loading, setLoading] = useState(false);
   const [autoFire, setAutoFire] = useState(true); 
   const [showSettings, setShowSettings] = useState(false);
   const [muted, setMuted] = useState(false);
+  
+  // Share Modal State
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareType, setShareType] = useState<'image' | 'video'>('image');
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [mediaBlob, setMediaBlob] = useState<Blob | null>(null);
+  
+  // Recording State
+  const [isRecording, setIsRecording] = useState(false);
   
   // Customization State
   const [settings, setSettings] = useState<FireworkSettings>({
@@ -53,7 +76,6 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle }) => 
     effect: 'classic'
   });
 
-  // Init default auto-fire on mount
   useEffect(() => {
     onAutoFireToggle(true);
   }, []);
@@ -88,6 +110,76 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle }) => 
     setMuted(isMuted);
   };
 
+  // --- IMAGE SHARING ---
+  const handleSnapshotClick = async () => {
+    const dataUrl = getSnapshot();
+    if (!dataUrl) return;
+    
+    setShareType('image');
+    setMediaUrl(dataUrl);
+    setMediaBlob(dataURItoBlob(dataUrl));
+    setShowShareModal(true);
+  };
+
+  // --- VIDEO RECORDING ---
+  const handleVideoRecordClick = async () => {
+    if (isRecording) return;
+    setIsRecording(true);
+    
+    try {
+      // Force enable autofire during recording to ensure content
+      if (!autoFire) onAutoFireToggle(true);
+
+      const blob = await startVideoRecording();
+      
+      if (!autoFire) onAutoFireToggle(false); // Restore state if needed
+      
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        setShareType('video');
+        setMediaUrl(url);
+        setMediaBlob(blob);
+        setShowShareModal(true);
+      }
+    } catch (err) {
+      console.error("Recording failed", err);
+      alert("无法录制视频，请检查浏览器兼容性");
+    } finally {
+      setIsRecording(false);
+    }
+  };
+
+  // --- NATIVE SHARE ---
+  const handleNativeShare = async () => {
+    if (!navigator.share || !mediaBlob) return;
+    
+    try {
+      const fileName = shareType === 'video' ? 'fireworks-2026.webm' : 'fireworks-2026.png';
+      const file = new File([mediaBlob], fileName, { type: mediaBlob.type });
+      
+      const shareData: ShareData = {
+        title: '2026 新春烟花庆典',
+        text: `我在2026新春烟花庆典为你放了一场烟花！\n祝你：${text || '马年大吉，万事如意'}！\n点击链接一起放烟花：`,
+        url: window.location.href,
+      };
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ ...shareData, files: [file] });
+      } else {
+        await navigator.share(shareData);
+      }
+    } catch (err) {
+      console.log('Share cancelled or failed', err);
+    }
+  };
+
+  const copyToClipboard = () => {
+    const shareText = `2026 新春烟花庆典\n${window.location.href}`;
+    navigator.clipboard.writeText(shareText).then(() => {
+      alert("链接已复制，快去分享给好友吧！");
+    });
+  };
+
   return (
     <div className="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-4 md:p-8">
       {/* Header */}
@@ -100,7 +192,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle }) => 
             </span>
           </h1>
           <p className="text-gray-300 text-sm mt-1 max-w-md">
-            金蛇狂舞辞旧岁，骏马奔腾迎新春。自定义您的烟花盛宴，点亮2026的夜空。
+            金蛇狂舞辞旧岁，骏马奔腾迎新春。
           </p>
         </div>
         
@@ -112,6 +204,37 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle }) => 
             >
               {muted ? <VolumeX size={24} /> : <Volume2 size={24} />}
             </button>
+            
+            {/* Snapshot Button */}
+            <button 
+              onClick={handleSnapshotClick}
+              disabled={isRecording}
+              className="p-3 rounded-full backdrop-blur-md bg-slate-900/40 border border-white/10 text-gray-300 hover:bg-white/10 transition-all shadow-lg disabled:opacity-30"
+              title="拍照分享"
+            >
+              <Camera size={24} />
+            </button>
+
+            {/* Video Record Button */}
+            <button 
+              onClick={handleVideoRecordClick}
+              disabled={isRecording}
+              className={`p-3 rounded-full backdrop-blur-md border transition-all shadow-lg relative ${isRecording ? 'bg-red-900/50 border-red-500' : 'bg-gradient-to-br from-red-600 to-red-500 border-red-400 hover:scale-105'}`}
+              title="录制动图/视频"
+            >
+              {isRecording ? (
+                <Loader2 size={24} className="text-white animate-spin" />
+              ) : (
+                <Video size={24} className="text-white animate-pulse-slow" />
+              )}
+              {isRecording && (
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                </span>
+              )}
+            </button>
+
             <button 
               onClick={() => setShowSettings(!showSettings)}
               className={`p-3 rounded-full backdrop-blur-md border transition-all shadow-lg ${showSettings ? 'bg-indigo-600/50 border-indigo-400 text-white' : 'bg-slate-900/40 border-white/10 text-gray-300 hover:bg-white/10'}`}
@@ -122,6 +245,68 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle }) => 
         </div>
       </div>
 
+      {/* Share/Preview Modal */}
+      {showShareModal && mediaUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm pointer-events-auto animate-fade-in">
+           <div className="bg-slate-900 border border-white/20 rounded-2xl max-w-sm w-full overflow-hidden shadow-2xl flex flex-col">
+              <div className="p-4 flex justify-between items-center border-b border-white/10">
+                 <h3 className="text-white font-serif flex items-center gap-2">
+                   {shareType === 'video' ? <Video size={18} /> : <Camera size={18} />} 
+                   {shareType === 'video' ? '烟花实况 (高清)' : '烟花贺卡'}
+                 </h3>
+                 <button onClick={() => setShowShareModal(false)} className="text-gray-400 hover:text-white"><X size={24} /></button>
+              </div>
+              
+              <div className="relative bg-black group flex items-center justify-center min-h-[300px]">
+                {shareType === 'video' ? (
+                  <video 
+                    src={mediaUrl} 
+                    autoPlay 
+                    loop 
+                    playsInline 
+                    controls
+                    className="w-full h-auto max-h-[60vh] object-contain" 
+                  />
+                ) : (
+                  <img src={mediaUrl} alt="Fireworks Snapshot" className="w-full h-auto max-h-[60vh] object-cover" />
+                )}
+                
+                {shareType === 'image' && (
+                  <div className="absolute bottom-0 inset-x-0 p-4 bg-gradient-to-t from-black/90 to-transparent pointer-events-none">
+                    <p className="text-yellow-400 font-serif text-xl font-bold">2026 马年大吉</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 grid grid-cols-2 gap-3 bg-slate-800/50">
+                 {/* Native Share */}
+                 {navigator.share && (
+                    <button 
+                    onClick={handleNativeShare}
+                    className="col-span-2 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl transition-colors font-bold shadow-lg"
+                    >
+                        <Share2 size={18} /> 发送给好友
+                    </button>
+                 )}
+
+                 <a 
+                   href={mediaUrl} 
+                   download={shareType === 'video' ? "fireworks-2026.webm" : "fireworks-2026.png"}
+                   className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white py-3 rounded-xl transition-colors"
+                 >
+                    <Download size={18} /> 保存到相册
+                 </a>
+                 <button 
+                   onClick={copyToClipboard}
+                   className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl transition-colors"
+                 >
+                    <Copy size={18} /> 复制链接
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
+
       {/* Settings Panel (Floating) */}
       {showSettings && (
         <div className="pointer-events-auto absolute top-24 right-4 md:right-8 w-64 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-xl p-4 shadow-2xl animate-fade-in-down">
@@ -129,22 +314,23 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle }) => 
              <Settings2 size={16} /> 烟花设置
            </h3>
            
-           {/* Color Selection */}
            <div className="mb-4">
-             <label className="text-gray-400 text-xs mb-2 flex items-center gap-2"><Palette size={14} /> 颜色</label>
-             <div className="grid grid-cols-6 gap-2">
+             <label className="text-gray-400 text-xs mb-2 flex items-center gap-2"><Palette size={14} /> 颜色风格</label>
+             <div className="grid grid-cols-3 gap-2">
                {COLORS.map((c) => (
                  <button
                    key={c.value}
                    onClick={() => setSettings(s => ({...s, color: c.value}))}
-                   className={`w-8 h-8 rounded-full shadow-inner border-2 transition-transform hover:scale-110 ${c.class} ${settings.color === c.value ? 'border-white scale-110' : 'border-transparent'}`}
+                   className={`h-8 rounded-md shadow-sm border transition-transform hover:scale-105 ${c.class} ${settings.color === c.value ? 'border-white ring-2 ring-white/50' : 'border-transparent opacity-80 hover:opacity-100'}`}
                    title={c.name}
                  />
                ))}
              </div>
+             <div className="text-center text-[10px] text-gray-500 mt-1">
+                {COLORS.find(c => c.value === settings.color)?.name}
+             </div>
            </div>
 
-           {/* Effect Selection */}
            <div className="mb-4">
               <label className="text-gray-400 text-xs mb-2 flex items-center gap-2"><Sparkles size={14} /> 特效</label>
               <div className="grid grid-cols-2 gap-2">
@@ -161,7 +347,6 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle }) => 
               </div>
            </div>
 
-           {/* Size Selection */}
            <div className="mb-4">
              <label className="text-gray-400 text-xs mb-2 flex items-center gap-2"><Scaling size={14} /> 大小</label>
              <div className="flex bg-black/20 rounded-lg p-1">
@@ -176,8 +361,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle }) => 
                ))}
              </div>
            </div>
-
-           {/* Shape Selection */}
+           
            <div>
              <label className="text-gray-400 text-xs mb-2 flex items-center gap-2"><Box size={14} /> 粒子形状</label>
              <div className="flex gap-2">
@@ -203,7 +387,6 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle }) => 
       {/* Center Controls - Bottom */}
       <div className="pointer-events-auto self-center w-full max-w-lg mb-8 space-y-4">
         
-        {/* Wish Suggestions Chips */}
         <div className="flex flex-wrap gap-2 justify-center max-h-32 overflow-y-auto custom-scrollbar p-1">
           {wishes.map((wish, i) => (
             <button
@@ -223,7 +406,6 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle }) => 
           </button>
         </div>
 
-        {/* Input Bar */}
         <div className="relative group">
           <div className="absolute -inset-0.5 bg-gradient-to-r from-red-600 to-yellow-500 rounded-lg blur opacity-50 group-hover:opacity-100 transition duration-500"></div>
           <form onSubmit={handleLaunch} className="relative flex items-center bg-slate-950 rounded-lg p-1.5 border border-white/10">
@@ -231,9 +413,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle }) => 
               type="text"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="输入您的2026愿望 (例如: 马到成功)"
+              placeholder="输入您的愿望... (支持长句)"
               className="flex-1 bg-transparent text-white placeholder-gray-500 px-4 py-3 outline-none font-serif text-lg"
-              maxLength={12}
+              maxLength={20} 
             />
             <button
               type="submit"
@@ -245,7 +427,6 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle }) => 
           </form>
         </div>
 
-        {/* Floating Toggles */}
         <div className="flex justify-center gap-4">
            <button
              onClick={toggleAutoFire}
@@ -261,7 +442,6 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle }) => 
         </div>
       </div>
       
-      {/* Footer Info */}
       <div className="pointer-events-auto absolute bottom-4 right-4">
          <div className="group relative flex justify-end">
             <button className="p-2 text-white/30 hover:text-white/80 transition-colors">
