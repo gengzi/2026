@@ -6,7 +6,7 @@ export interface Point {
 
 export type ParticleShape = 'circle' | 'square';
 export type FireworkSize = 'small' | 'medium' | 'large';
-export type FireworkEffect = 'classic' | 'willow' | 'ring' | 'galaxy';
+export type FireworkEffect = 'classic' | 'willow' | 'ring' | 'galaxy' | 'strobe' | 'double-ring';
 
 export interface FireworkSettings {
   color: string; // 'random' or hex code
@@ -31,6 +31,10 @@ export interface Particle {
   friction: number;
   gravity: number;
   flicker?: boolean;
+  // Text animation properties
+  holding?: number;
+  initialX?: number;
+  initialY?: number;
 }
 
 export interface FireworkShell {

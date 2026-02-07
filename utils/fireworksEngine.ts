@@ -8,19 +8,19 @@ import { playExplosionSound } from './soundEngine';
 export const random = (min: number, max: number) => Math.random() * (max - min) + min;
 
 /**
- * Curated Color Palettes for 2026 CNY
+ * Curated Color Palettes for 2026 CNY - Realistic Fireworks
  */
 const PALETTES = {
-  // Red & Gold (Classic CNY)
-  classic: ['#ff0000', '#ff2400', '#ffcc00', '#ffd700', '#ffffff'],
-  // Cyan & Pink & Purple (Cyberpunk)
-  cyber: ['#00ffff', '#ff00ff', '#bd00ff', '#ffffff', '#00ccff'],
-  // Gold & Silver (Rich)
-  rich: ['#ffd700', '#fdb931', '#e5e4e2', '#ffffff', '#c0c0c0'],
-  // Jade & Emerald (Nature)
-  jade: ['#00ff00', '#00cc00', '#ccffcc', '#ffff00', '#50c878'],
-  // Pastel (Dreamy)
-  pastel: ['#ffb3ba', '#ffdfba', '#ffffba', '#baffc9', '#bae1ff'],
+  // Real Gold (Elegant, Classic, Shimmering)
+  gold: ['#FFD700', '#FDB931', '#FFFACD', '#DAA520', '#FFFFFF'],
+  // China Red (Festive, Deep)
+  red: ['#FF0000', '#DC143C', '#B22222', '#FF4500', '#FFD700'],
+  // Icy Silver (Modern, Clean, Sparkly)
+  silver: ['#FFFFFF', '#F0F8FF', '#E0FFFF', '#C0C0C0', '#B0C4DE'],
+  // Cyan/Blue (Tech/Cool/High Temp)
+  blue: ['#00BFFF', '#1E90FF', '#4169E1', '#0000FF', '#E0FFFF'],
+  // Colorful (Traditional Fireworks Show)
+  colorful: ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'],
 };
 
 /**
@@ -44,8 +44,6 @@ export const getTextPoints = (text: string, baseSize: number = 100): Point[] => 
   if (!ctx) return [];
 
   // Auto-scale font size based on text length to fit screen
-  // Short text (2 chars) -> 120px
-  // Long text (8 chars) -> 60px
   const fontSize = Math.max(50, Math.min(baseSize, 800 / Math.max(2, text.length)));
   
   canvas.width = Math.max(800, text.length * fontSize + 200);
@@ -62,9 +60,8 @@ export const getTextPoints = (text: string, baseSize: number = 100): Point[] => 
   const data = imageData.data;
   const points: Point[] = [];
   
-  // Optimization: Increase step to 6 to reduce particle count significantly
-  // Was 4, increasing to 6 reduces particles by ~50%
-  const step = 6; 
+  // Optimization & Density Control
+  const step = fontSize > 100 ? 6 : 5; 
   
   for (let y = 0; y < canvas.height; y += step) {
     for (let x = 0; x < canvas.width; x += step) {
@@ -93,7 +90,7 @@ const pickColor = (paletteName: string) => {
   if (paletteName.startsWith('#')) return paletteName;
 
   // If it's a palette key
-  const colors = PALETTES[paletteName as keyof typeof PALETTES] || PALETTES['classic'];
+  const colors = PALETTES[paletteName as keyof typeof PALETTES] || PALETTES['gold']; // Default to gold for elegance
   return colors[Math.floor(Math.random() * colors.length)];
 }
 
@@ -111,28 +108,32 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
     countMultiplier = 0.6;
     speedMultiplier = 0.8;
   } else if (size === 'large') {
-    countMultiplier = 1.5; // Reduced from 1.8 for performance
+    countMultiplier = 1.5; 
     speedMultiplier = 1.3;
   }
 
-  // Optimization: Reduced base count from 150 to 80
   const baseCount = 80; 
   const particleCount = shell.text ? 0 : Math.floor(baseCount * countMultiplier); 
   
   // 1. Text Explosion
   if (shell.text) {
     const points = getTextPoints(shell.text, size === 'large' ? 140 : 100);
-    // Shuffle points to create a "forming" effect if we wanted, but here we just use them
     points.forEach((pt) => {
-      // Density check: Optimization
-      if (Math.random() > 0.9) return; 
+      // Density check
+      if (Math.random() > 0.92) return; 
+
+      const px = shell.x + pt.x;
+      const py = shell.y + pt.y;
 
       particles.push({
-        x: shell.x + pt.x, 
-        y: shell.y + pt.y,
+        x: px, 
+        y: py,
+        initialX: px,
+        initialY: py,
+        holding: 45, 
         vx: random(-0.2, 0.2) + shell.vx * 0.1, 
         vy: random(-0.2, 0.2) + shell.vy * 0.1,
-        life: random(100, 180), // Reduced life for faster cleanup (was 180-240)
+        life: random(100, 180),
         maxLife: 180,
         color: pickColor(color), 
         alpha: 1,
@@ -145,8 +146,8 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
       });
     });
     
-    // Add a "Bang" effect behind the text (reduced count)
-    for (let i = 0; i < 20; i++) { // Was 50
+    // Bang effect
+    for (let i = 0; i < 30; i++) { 
        const angle = random(0, Math.PI * 2);
        const speed = random(5, 20);
        particles.push({
@@ -183,7 +184,7 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
         y: shell.y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        life: random(150, 250), // Reduced max life
+        life: random(150, 250), 
         maxLife: 250,
         color: baseC,
         alpha: 1,
@@ -197,10 +198,40 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
     }
   } 
   
-  // --- RING (Perfect Circle) ---
-  else if (effect === 'ring') {
-    const ringCount = Math.floor(particleCount * 0.8);
+  // --- STROBE (Flickering stars) ---
+  else if (effect === 'strobe') {
+    const count = Math.floor(particleCount * 0.8);
+    const c = pickColor(color);
+    for (let i = 0; i < count; i++) {
+      const angle = random(0, Math.PI * 2);
+      const speed = random(4, 15) * speedMultiplier;
+      particles.push({
+        x: shell.x,
+        y: shell.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: random(100, 180),
+        maxLife: 180,
+        color: c,
+        alpha: 1,
+        size: random(2, 4),
+        type: 'spark',
+        shape: shape,
+        friction: 0.93,
+        gravity: 0.02,
+        flicker: true // Key for strobe
+      });
+    }
+  }
+
+  // --- RING / DOUBLE-RING ---
+  else if (effect === 'ring' || effect === 'double-ring') {
+    const isDouble = effect === 'double-ring';
+    const ringCount = Math.floor(particleCount * 0.6);
     const ringColor = pickColor(color);
+    const innerColor = pickColor(color === 'random' ? 'random' : color);
+    
+    // Outer Ring
     for (let i = 0; i < ringCount; i++) {
       const angle = (Math.PI * 2 * i) / ringCount;
       const speed = 8 * speedMultiplier;
@@ -214,7 +245,7 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
         maxLife: 120,
         color: ringColor,
         alpha: 1,
-        size: random(2, 4),
+        size: random(2, 3),
         type: 'spark',
         shape: shape,
         friction: 0.95,
@@ -222,11 +253,37 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
         flicker: false
       });
     }
+
+    // Inner Ring
+    if (isDouble) {
+      const innerCount = Math.floor(ringCount * 0.6);
+      for (let i = 0; i < innerCount; i++) {
+        const angle = (Math.PI * 2 * i) / innerCount;
+        const speed = 5 * speedMultiplier; // Slower
+        
+        particles.push({
+          x: shell.x,
+          y: shell.y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: random(80, 120),
+          maxLife: 120,
+          color: innerColor, // Often different color
+          alpha: 1,
+          size: random(2, 3),
+          type: 'spark',
+          shape: shape,
+          friction: 0.95,
+          gravity: 0.02,
+          flicker: true
+        });
+      }
+    }
   }
   
   // --- GALAXY (Spiral) ---
   else if (effect === 'galaxy') {
-    const arms = 5;
+    const arms = random(3, 6); // Randomize arms
     const pointsPerArm = Math.floor(particleCount / arms);
     
     for (let arm = 0; arm < arms; arm++) {
@@ -259,9 +316,12 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
 
   // --- CLASSIC (Peony/Chrysanthemum) ---
   else {
+    // Randomize style: Peony (loose) vs Chrysanthemum (streaky)
+    const style = Math.random() > 0.5 ? 'peony' : 'streak';
+    
     for (let i = 0; i < particleCount; i++) {
       const angle = random(0, Math.PI * 2);
-      const speed = random(2, 12) * speedMultiplier;
+      const speed = random(2, 14) * speedMultiplier;
       
       particles.push({
         x: shell.x,
@@ -275,7 +335,7 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
         size: random(2, 4),
         type: 'spark',
         shape: shape,
-        friction: 0.95,
+        friction: style === 'peony' ? 0.92 : 0.96, // Drag variation
         gravity: 0.03,
         flicker: Math.random() > 0.3
       });
@@ -305,15 +365,16 @@ export const updatePhysics = (
 
     // Draw Shell
     ctx.beginPath();
-    ctx.arc(shell.x, shell.y, 3, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffffff';
+    ctx.arc(shell.x, shell.y, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffeedd';
     ctx.fill();
 
     // Trail
     ctx.beginPath();
     ctx.moveTo(shell.x, shell.y);
-    ctx.lineTo(shell.x - shell.vx * 3, shell.y - shell.vy * 3);
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineTo(shell.x - shell.vx * 2, shell.y - shell.vy * 2);
+    ctx.strokeStyle = 'rgba(255,230,200,0.4)';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
 
     const dist = Math.hypot(shell.x - shell.targetX, shell.y - shell.targetY);
@@ -332,25 +393,39 @@ export const updatePhysics = (
   // Update Particles
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
-    
-    p.x += p.vx;
-    p.y += p.vy;
-    
-    p.vx *= p.friction;
-    p.vy *= p.friction;
-    p.vy += p.gravity;
-    
-    p.life -= 1;
 
-    // Visual Decay
-    const lifeRatio = p.life / p.maxLife;
-    p.alpha = lifeRatio > 0.2 ? 1 : lifeRatio / 0.2;
-    
-    // Intense Flicker
+    // Handle Holding State (Pre-Explosion Animation)
+    if (p.holding && p.holding > 0 && p.initialX !== undefined && p.initialY !== undefined) {
+       p.holding--;
+       const shakeIntensity = 1.2;
+       p.x = p.initialX + (Math.random() - 0.5) * shakeIntensity;
+       p.y = p.initialY + (Math.random() - 0.5) * shakeIntensity;
+       p.alpha = 0.8 + Math.sin(Date.now() / 40) * 0.2; 
+    } else {
+        // Standard Physics
+        p.x += p.vx;
+        p.y += p.vy;
+        
+        p.vx *= p.friction;
+        p.vy *= p.friction;
+        p.vy += p.gravity;
+        
+        p.life -= 1;
+
+        // Visual Decay - Faster fade out at end for cleanliness
+        const lifeRatio = p.life / p.maxLife;
+        p.alpha = lifeRatio > 0.3 ? 1 : lifeRatio / 0.3;
+    }
+
+    // Intense Flicker (Glitter effect)
     let renderAlpha = p.alpha;
     if (p.flicker) {
-       // Sharp flickering
-       renderAlpha = p.alpha * (0.5 + Math.random() * 0.5);
+       // Strobe effect: blink on and off
+       if (Math.random() > 0.5) {
+         renderAlpha = p.alpha;
+       } else {
+         renderAlpha = 0.2 * p.alpha;
+       }
     }
 
     if (p.life <= 0 || p.alpha <= 0.01) {
@@ -361,10 +436,6 @@ export const updatePhysics = (
     // Draw
     ctx.globalAlpha = Math.max(0, renderAlpha);
     ctx.fillStyle = p.color;
-    
-    // Performance Optimization: REMOVED ctx.shadowBlur
-    // ShadowBlur is extremely expensive on CPU/GPU. 
-    // We rely on globalCompositeOperation 'lighter' in the main loop for the glow effect.
     
     ctx.beginPath();
     if (p.shape === 'circle') {

@@ -54,9 +54,12 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
         
         const r = Math.random();
         let effect: FireworkEffect = 'classic';
-        if (r > 0.85) effect = 'galaxy';
-        else if (r > 0.70) effect = 'ring';
-        else if (r > 0.50) effect = 'willow';
+        // Increased diversity in auto-selection
+        if (r > 0.90) effect = 'galaxy';
+        else if (r > 0.80) effect = 'strobe';
+        else if (r > 0.70) effect = 'double-ring';
+        else if (r > 0.60) effect = 'ring';
+        else if (r > 0.45) effect = 'willow';
 
         const randomSettings: FireworkSettings = {
           color: 'random',
@@ -107,13 +110,11 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
       }
 
       // HIGH QUALITY RECORDING SETTINGS
-      // Capture at 60FPS for smoothness
       const stream = canvas.captureStream(60); 
       
       try {
         const recorder = new MediaRecorder(stream, {
           mimeType,
-          // 8 Mbps bitrate for crisp visuals, similar to a high-quality GIF/Video
           videoBitsPerSecond: 8000000 
         });
 
@@ -191,21 +192,14 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
     resize();
 
     const loop = () => {
-      // Background handling: 
-      // We use 'source-over' with semi-transparent black to create trails.
-      // But we MUST ensure the base is dark for video recording.
-      
-      // 1. Fade existing trails
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'; 
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // 2. Draw a faint black layer to ensure video background isn't transparent
-      ctx.globalCompositeOperation = 'destination-over';
-      ctx.fillStyle = 'rgba(2, 6, 23, 1)'; // slate-950 full opacity
+      // Clean Background Logic:
+      // Use source-over with a HIGH opacity background color to remove trails quickly.
+      // Opacity 0.45 ensures that past frames fade out very fast, leaving minimal traces.
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.45)'; 
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // 3. Draw particles
+      // Draw particles with additive blending for glow
       ctx.globalCompositeOperation = 'lighter';
       updatePhysics(shellsRef.current, particlesRef.current, ctx, canvas.width, canvas.height);
 

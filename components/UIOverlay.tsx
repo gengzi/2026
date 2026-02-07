@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { generateNewYearWishes } from '../services/geminiService';
-import { Sparkles, Send, Wand2, Info, Settings2, Palette, Box, Circle, Scaling, Volume2, VolumeX, Snowflake, Activity, Aperture, Star, Share2, Download, X, Copy, Camera, Video, Loader2 } from 'lucide-react';
+import { Sparkles, Send, Wand2, Info, Settings2, Palette, Box, Circle, Scaling, Volume2, VolumeX, Snowflake, Activity, Aperture, Star, Share2, Download, X, Copy, Camera, Video, Loader2, Zap, Disc } from 'lucide-react';
 import { FireworkSettings, ParticleShape, FireworkSize, FireworkEffect } from '../types';
 import { toggleMute, getMuteState } from '../utils/soundEngine';
 
@@ -23,21 +23,23 @@ const TEMPLATES = [
   "前程似锦"
 ];
 
-// Updated Palettes to match engine
+// Updated Palettes to match engine realistic colors
 const COLORS = [
   { name: '随机', value: 'random', class: 'bg-gradient-to-r from-pink-500 via-yellow-500 to-cyan-500' },
-  { name: '中国红', value: 'classic', class: 'bg-gradient-to-r from-red-600 to-yellow-400' },
-  { name: '赛博霓虹', value: 'cyber', class: 'bg-gradient-to-r from-cyan-400 to-purple-500' },
-  { name: '富贵金银', value: 'rich', class: 'bg-gradient-to-r from-yellow-300 to-slate-300' },
-  { name: '翡翠森林', value: 'jade', class: 'bg-gradient-to-r from-green-500 to-emerald-300' },
-  { name: '梦幻马卡龙', value: 'pastel', class: 'bg-gradient-to-r from-pink-300 to-blue-200' },
+  { name: '流光金', value: 'gold', class: 'bg-gradient-to-r from-yellow-300 to-yellow-600' },
+  { name: '中国红', value: 'red', class: 'bg-gradient-to-r from-red-500 to-red-700' },
+  { name: '钛金银', value: 'silver', class: 'bg-gradient-to-r from-slate-200 to-slate-400' },
+  { name: '冰川蓝', value: 'blue', class: 'bg-gradient-to-r from-blue-400 to-blue-600' },
+  { name: '绚丽彩', value: 'colorful', class: 'bg-gradient-to-r from-green-400 via-red-400 to-purple-400' },
 ];
 
 const EFFECTS: {id: FireworkEffect, name: string, icon: React.ReactNode}[] = [
   { id: 'classic', name: '经典', icon: <Star size={14} /> },
   { id: 'willow', name: '垂柳', icon: <Snowflake size={14} /> },
   { id: 'ring', name: '光环', icon: <Aperture size={14} /> },
+  { id: 'double-ring', name: '双环', icon: <Disc size={14} /> },
   { id: 'galaxy', name: '星云', icon: <Activity size={14} /> },
+  { id: 'strobe', name: '闪耀', icon: <Zap size={14} /> },
 ];
 
 const dataURItoBlob = (dataURI: string) => {
