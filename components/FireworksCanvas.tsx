@@ -9,7 +9,7 @@ export interface FireworksCanvasHandle {
   launch: (x: number, y: number, text?: string, pattern?: PatternType, settings?: FireworkSettings) => void;
   launchPattern: (pattern: PatternType) => void;
   autoLaunch: () => void;
-  triggerSpecial: (type: 'salvo' | 'strafe' | 'fan' | 'finale') => void;
+  triggerSpecial: (type: 'salvo' | 'strafe' | 'fan' | 'finale', customText?: string) => void;
   snapshot: () => string | null;
   recordVideo: (durationMs: number) => Promise<Blob | null>;
 }
@@ -141,26 +141,45 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
         createShell(x!, y!, text, pattern, randomSettings);
       }
     },
-    triggerSpecial(type: 'salvo' | 'strafe' | 'fan' | 'finale') {
+    triggerSpecial(type: 'salvo' | 'strafe' | 'fan' | 'finale', customText?: string) {
       if (!canvasRef.current) return;
       const w = canvasRef.current.width;
       const h = canvasRef.current.height;
 
       const colors = ['gold', 'red', 'silver', 'blue', 'colorful', 'sunset', 'mint', 'cherry'];
       const randomColor = () => colors[Math.floor(Math.random() * colors.length)];
+      
+      // Helper: determine if we should use custom text, random text, or nothing
+      const getTextPayload = (forceCustom: boolean = false): string | undefined => {
+          if (forceCustom && customText && customText.trim()) return customText;
+          if (customText && customText.trim() && Math.random() < 0.4) return customText;
+          if (Math.random() < 0.5) return getRandomHotWord();
+          return undefined;
+      };
 
       if (type === 'salvo') {
         // 图案齐射 (Pattern Salvo)
         const count = 8;
         const patterns: PatternType[] = ['heart', 'star', 'music', 'butterfly', 'lantern', 'coin', 'fish', 'snowflake'];
-        const pattern = patterns[Math.floor(Math.random()*patterns.length)];
+        const basePattern = patterns[Math.floor(Math.random() * patterns.length)];
         const color = randomColor();
         
         for (let i = 0; i < count; i++) {
             const x = (w * 0.15) + ((w * 0.7) / (count-1)) * i;
             const y = h * 0.3;
+            
+            // Mix text and pattern
+            let txt: string | undefined;
+            let pat: PatternType | undefined = basePattern;
+            
+            // Even indices might have text
+            if (i % 2 === 0) {
+                 txt = getTextPayload(i === Math.floor(count/2));
+                 if (txt) pat = undefined; // Clear pattern if text is chosen
+            }
+
             setTimeout(() => {
-                createShell(x, y, undefined, pattern, {
+                createShell(x, y, txt, pat, {
                     color: color,
                     size: 'large',
                     shape: 'square',
@@ -175,7 +194,14 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
             setTimeout(() => {
                 const x = (w * 0.1) + ((w * 0.8) / count) * i;
                 const y = h * 0.4 + Math.sin(i * 0.8) * (h * 0.1); 
-                createShell(x, y, undefined, undefined, {
+                
+                // Sparse text in rapid fire
+                let txt: string | undefined;
+                if (i % 8 === 0) {
+                    txt = getTextPayload();
+                }
+
+                createShell(x, y, txt, undefined, {
                     color: randomColor(),
                     size: 'small',
                     shape: 'square',
@@ -192,8 +218,14 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
              const x = (w * 0.1) + (w * 0.8) * t;
              const y = h * 0.2 + Math.abs(t - 0.5) * (h * 0.3);
              
+             let txt: string | undefined;
+             // Center shells get text
+             if (i >= 5 && i <= 9) {
+                 txt = getTextPayload(i === 7); // Center one forces custom text if avail
+             }
+             
              setTimeout(() => {
-                createShell(x, y, undefined, undefined, {
+                createShell(x, y, txt, undefined, {
                     color: color,
                     size: 'large',
                     shape: 'circle',
@@ -213,12 +245,21 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
             }, i * 50);
         }
 
-        // 2. Pattern Barrage
+        // 2. Pattern/Text Barrage
         setTimeout(() => {
             const patterns: PatternType[] = ['heart', 'smile', 'diamond', 'spiral', 'butterfly', 'lantern', 'fish'];
             for(let i=0; i<8; i++) {
                 setTimeout(() => {
-                   createShell(random(w*0.1, w*0.9), h*0.3, undefined, patterns[i%patterns.length], {
+                   let txt: string | undefined;
+                   let pat: PatternType | undefined = patterns[i % patterns.length];
+                   
+                   // Every other one is text
+                   if (i % 2 !== 0) {
+                       txt = getTextPayload();
+                       if (txt) pat = undefined;
+                   }
+
+                   createShell(random(w*0.1, w*0.9), h*0.3, txt, pat, {
                         color: 'random', size: 'large', shape: 'square', effect: 'classic'
                    });
                 }, i * 250);
@@ -236,7 +277,11 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
         
         // 4. Grand Finale Text
         setTimeout(() => {
-             createShell(w/2, h*0.2, undefined, '2026', {
+             // Prioritize custom text for the big finish
+             const finalText = (customText && customText.trim()) ? customText : undefined;
+             const finalPattern = finalText ? undefined : '2026';
+
+             createShell(w/2, h*0.2, finalText, finalPattern as any, {
                  color: 'gold', size: 'large', shape: 'square', effect: 'classic'
              });
              // Flanking crowns

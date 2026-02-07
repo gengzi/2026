@@ -93,8 +93,8 @@ function App() {
     }
   };
 
-  const handleTriggerSpecial = (type: 'salvo' | 'strafe' | 'fan' | 'finale') => {
-    fireworksRef.current?.triggerSpecial(type);
+  const handleTriggerSpecial = (type: 'salvo' | 'strafe' | 'fan' | 'finale', customText?: string) => {
+    fireworksRef.current?.triggerSpecial(type, customText);
   };
 
   const handleInteraction = () => {

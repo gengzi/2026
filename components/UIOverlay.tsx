@@ -8,7 +8,7 @@ import { toggleMute, getMuteState } from '../utils/soundEngine';
 interface UIOverlayProps {
   onLaunch: (text: string, settings: FireworkSettings) => void;
   onAutoFireToggle: (enabled: boolean, speedMultiplier: number) => void;
-  onTriggerSpecial: (type: 'salvo' | 'strafe' | 'fan' | 'finale') => void;
+  onTriggerSpecial: (type: 'salvo' | 'strafe' | 'fan' | 'finale', text?: string) => void;
   getSnapshot: () => string | null;
   startVideoRecording: () => Promise<Blob | null>;
 }
@@ -465,25 +465,25 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle, onTri
         {/* SKILLS BAR */}
         <div className="flex flex-wrap justify-center gap-2">
              <button
-               onClick={() => onTriggerSpecial('strafe')}
+               onClick={() => onTriggerSpecial('strafe', text)}
                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-cyan-600/40 hover:bg-cyan-500/60 border border-cyan-400/30 text-cyan-100 text-xs backdrop-blur transition-all hover:scale-105"
              >
                <AlignJustify size={14} className="rotate-90" /> 加特林
              </button>
              <button
-               onClick={() => onTriggerSpecial('salvo')}
+               onClick={() => onTriggerSpecial('salvo', text)}
                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-purple-600/40 hover:bg-purple-500/60 border border-purple-400/30 text-purple-100 text-xs backdrop-blur transition-all hover:scale-105"
              >
                <Heart size={14} /> 图案齐射
              </button>
              <button
-               onClick={() => onTriggerSpecial('fan')}
+               onClick={() => onTriggerSpecial('fan', text)}
                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-yellow-600/40 hover:bg-yellow-500/60 border border-yellow-400/30 text-yellow-100 text-xs backdrop-blur transition-all hover:scale-105"
              >
                <Fan size={14} /> 密集扇形
              </button>
              <button
-               onClick={() => onTriggerSpecial('finale')}
+               onClick={() => onTriggerSpecial('finale', text)}
                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-rose-600/40 hover:bg-rose-500/60 border border-rose-400/30 text-rose-100 text-xs backdrop-blur transition-all hover:scale-105 font-bold shadow-[0_0_10px_rgba(244,63,94,0.5)]"
              >
                <Crown size={14} /> 终极审判
