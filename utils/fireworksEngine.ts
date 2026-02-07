@@ -1,5 +1,5 @@
 
-import { Particle, FireworkShell, Point, FireworkSettings } from '../types';
+import { Particle, FireworkShell, Point, FireworkSettings, PatternType } from '../types';
 import { playExplosionSound } from './soundEngine';
 
 /**
@@ -32,15 +32,216 @@ const PALETTES = {
 };
 
 /**
- * Converts Hex to RGB for alpha manipulation
+ * PATTERN GENERATORS
  */
-const hexToRgb = (hex: string) => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
-  } : null;
+export const getPatternPoints = (type: PatternType): Point[] => {
+  const points: Point[] = [];
+  const scale = 80; // Base scale for shapes
+
+  if (type === 'heart') {
+    // Parametric Heart Equation
+    for (let t = 0; t < Math.PI * 2; t += 0.1) {
+      // x = 16sin^3(t)
+      const x = 16 * Math.pow(Math.sin(t), 3);
+      // y = 13cos(t) - 5cos(2t) - 2cos(3t) - cos(4t)
+      const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+      
+      points.push({ x: x * (scale / 16), y: y * (scale / 16) });
+      // Fill inside slightly
+      if (Math.random() > 0.5) {
+         points.push({ x: x * (scale / 16) * 0.8, y: y * (scale / 16) * 0.8 });
+      }
+    }
+  } 
+  else if (type === 'star') {
+    // 5-Point Star
+    const spikes = 5;
+    const outerRadius = scale;
+    const innerRadius = scale * 0.4;
+    
+    for (let i = 0; i < spikes * 2; i++) {
+        const r = (i % 2 === 0) ? outerRadius : innerRadius;
+        const angle = (Math.PI / spikes) * i - Math.PI / 2;
+        const nextAngle = (Math.PI / spikes) * (i + 1) - Math.PI / 2;
+        
+        // Draw lines between points
+        const x1 = Math.cos(angle) * r;
+        const y1 = Math.sin(angle) * r;
+        const x2 = Math.cos(nextAngle) * ((i % 2 === 0) ? innerRadius : outerRadius);
+        const y2 = Math.sin(nextAngle) * ((i % 2 === 0) ? innerRadius : outerRadius);
+
+        // Interpolate points along the line
+        const steps = 10;
+        for(let j=0; j<steps; j++) {
+            const t = j/steps;
+            points.push({
+                x: x1 + (x2 - x1) * t,
+                y: y1 + (y2 - y1) * t
+            });
+        }
+    }
+  }
+  else if (type === 'smile') {
+     // Face
+     for(let i=0; i<50; i++) {
+         const angle = (i/50) * Math.PI * 2;
+         points.push({x: Math.cos(angle)*scale, y: Math.sin(angle)*scale});
+     }
+     // Eyes
+     points.push({x: -scale*0.4, y: -scale*0.3}, {x: -scale*0.35, y: -scale*0.3}); // Left
+     points.push({x: scale*0.4, y: -scale*0.3}, {x: scale*0.35, y: -scale*0.3}); // Right
+     // Mouth (Arc)
+     for(let i=0; i<30; i++) {
+         const angle = Math.PI * 0.2 + (i/30) * Math.PI * 0.6;
+         points.push({x: Math.cos(angle)*scale*0.6, y: Math.sin(angle)*scale*0.6});
+     }
+  }
+  else if (type === 'diamond') {
+     const s = scale * 0.8;
+     // Diamond shape is just rotated square, simple lines
+     for(let t=0; t<=1; t+=0.05) points.push({x: 0 + s*t, y: -s + s*t}); // Top to Right
+     for(let t=0; t<=1; t+=0.05) points.push({x: s - s*t, y: 0 + s*t}); // Right to Bottom
+     for(let t=0; t<=1; t+=0.05) points.push({x: 0 - s*t, y: s - s*t}); // Bottom to Left
+     for(let t=0; t<=1; t+=0.05) points.push({x: -s + s*t, y: 0 - s*t}); // Left to Top
+     // Cross
+     for(let t=0; t<=1; t+=0.1) points.push({x: -s/2 + s*t, y: 0});
+     for(let t=0; t<=1; t+=0.1) points.push({x: 0, y: -s/2 + s*t});
+  }
+  else if (type === 'spiral') {
+    // Archimedean Spiral
+    const loops = 3;
+    const pointsCount = 100;
+    for(let i=0; i<pointsCount; i++) {
+        const theta = (i / pointsCount) * Math.PI * 2 * loops;
+        const r = (i / pointsCount) * scale;
+        points.push({
+            x: r * Math.cos(theta),
+            y: r * Math.sin(theta)
+        });
+    }
+  }
+  else if (type === 'crown') {
+    const w = scale;
+    const h = scale * 0.6;
+    // Base
+    const steps = 20;
+    for(let i=0; i<=steps; i++) {
+        const t = i/steps;
+        points.push({x: -w + 2*w*t, y: h});
+    }
+    // Sides and spikes
+    // Simplified: Bottom Left -> Top Left Spike -> Middle Valley -> Middle Spike -> ...
+    const spikes = [
+        {x: -w, y: h},
+        {x: -w*0.8, y: -h*0.5},
+        {x: -w*0.4, y: 0},
+        {x: 0, y: -h},
+        {x: w*0.4, y: 0},
+        {x: w*0.8, y: -h*0.5},
+        {x: w, y: h}
+    ];
+    for(let i=0; i<spikes.length-1; i++) {
+        const p1 = spikes[i];
+        const p2 = spikes[i+1];
+        const segSteps = 10;
+        for(let j=0; j<segSteps; j++) {
+            const t = j/segSteps;
+            points.push({
+                x: p1.x + (p2.x - p1.x)*t,
+                y: p1.y + (p2.y - p1.y)*t
+            });
+        }
+    }
+  }
+  else if (type === 'music') {
+    // Note head
+    const headX = -scale * 0.3;
+    const headY = scale * 0.5;
+    const r = scale * 0.25;
+    // Draw filled circle roughly
+    for(let i=0; i<5; i++) {
+        for(let ang=0; ang<Math.PI*2; ang+=0.5) {
+            points.push({
+                x: headX + Math.cos(ang)*(r * (i/5)),
+                y: headY + Math.sin(ang)*(r * (i/5))
+            });
+        }
+    }
+    // Stem
+    const stemX = headX + r;
+    for(let y = headY; y > -scale*0.8; y-=5) {
+        points.push({x: stemX, y: y});
+    }
+    // Flag
+    const topY = -scale*0.8;
+    for(let t=0; t<1; t+=0.05) {
+        // Curve down
+        const x = stemX + t * scale * 0.8;
+        const y = topY + Math.sin(t * Math.PI) * scale * 0.4;
+        points.push({x, y});
+        // Thickness
+        points.push({x, y: y+5});
+    }
+  }
+  else if (type === 'butterfly') {
+    const steps = 100;
+    for(let i=0; i<steps; i++) {
+        const t = (i/steps) * 12 * Math.PI; // many cycles
+        // Butterfly curve approximation
+        // r = exp(cos(t)) - 2*cos(4t) + sin(t/12)^5
+        const r = Math.exp(Math.cos(t)) - 2*Math.cos(4*t) + Math.pow(Math.sin(t/12), 5);
+        // Normalize roughly
+        const rScaled = r * (scale * 0.25);
+        
+        // Since the curve is complex, we use parametric points directly
+        // Just rotate it correctly
+        points.push({
+            x: rScaled * Math.sin(t),
+            y: -rScaled * Math.cos(t) // Upright
+        });
+    }
+  }
+  else if (type === '2026') {
+      // Simplified grid for "2026"
+      // This uses relative offsets. 
+      const charW = scale * 0.5;
+      const spacing = scale * 0.6;
+      const startX = -(spacing * 1.5);
+      
+      // Helper to plot line
+      const line = (x1: number, y1: number, x2: number, y2: number, offsetX: number) => {
+          const dist = Math.hypot(x2-x1, y2-y1);
+          const steps = Math.max(5, Math.floor(dist / 5));
+          for(let i=0; i<=steps; i++) {
+              points.push({
+                  x: (x1 + (x2-x1)*(i/steps)) + offsetX,
+                  y: (y1 + (y2-y1)*(i/steps))
+              });
+          }
+      };
+
+      // 2
+      let off = startX;
+      line(0,0, charW,0, off); line(charW,0, charW, charW, off); 
+      line(charW,charW, 0,charW, off); line(0,charW, 0,charW*2, off); line(0,charW*2, charW,charW*2, off);
+      
+      // 0
+      off += spacing;
+      line(0,0, charW,0, off); line(charW,0, charW,charW*2, off); 
+      line(charW,charW*2, 0,charW*2, off); line(0,charW*2, 0,0, off);
+
+      // 2
+      off += spacing;
+      line(0,0, charW,0, off); line(charW,0, charW, charW, off); 
+      line(charW,charW, 0,charW, off); line(0,charW, 0,charW*2, off); line(0,charW*2, charW,charW*2, off);
+
+      // 6
+      off += spacing;
+      line(0,0, 0,charW*2, off); line(0,charW*2, charW,charW*2, off); 
+      line(charW,charW*2, charW,charW, off); line(charW,charW, 0,charW, off); line(0,0, charW,0, off); // Top cap
+  }
+
+  return points;
 };
 
 /**
@@ -51,15 +252,13 @@ export const getTextPoints = (text: string, baseSize: number = 100): Point[] => 
   const ctx = canvas.getContext('2d');
   if (!ctx) return [];
 
-  // Auto-scale font size based on text length to fit screen
-  // Reduced max font size slightly to ensure it fits well
-  const fontSize = Math.max(60, Math.min(baseSize, 750 / Math.max(2, text.length)));
+  const fontSize = Math.max(70, Math.min(baseSize, 800 / Math.max(2, text.length)));
   
   canvas.width = Math.max(800, text.length * fontSize + 200);
   canvas.height = 500;
   
   // Draw text
-  ctx.font = `900 ${fontSize}px "Noto Serif SC", serif`; // Ultra bold
+  ctx.font = `900 ${fontSize}px "Noto Serif SC", serif`; 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
@@ -69,14 +268,11 @@ export const getTextPoints = (text: string, baseSize: number = 100): Point[] => 
   const data = imageData.data;
   const points: Point[] = [];
   
-  // HIGH DENSITY SAMPLING for clearer text
-  // Step 3 or 4 provides much solid text than 5 or 6
   const step = 4; 
   
   for (let y = 0; y < canvas.height; y += step) {
     for (let x = 0; x < canvas.width; x += step) {
       const index = (y * canvas.width + x) * 4;
-      // Threshold check
       if (data[index + 3] > 128) {
         points.push({
           x: x - canvas.width / 2, 
@@ -96,12 +292,8 @@ const pickColor = (paletteName: string) => {
     const colors = PALETTES[key];
     return colors[Math.floor(Math.random() * colors.length)];
   }
-  
-  // If it's a specific hex code
   if (paletteName.startsWith('#')) return paletteName;
-
-  // If it's a palette key
-  const colors = PALETTES[paletteName as keyof typeof PALETTES] || PALETTES['gold']; // Default to gold for elegance
+  const colors = PALETTES[paletteName as keyof typeof PALETTES] || PALETTES['gold'];
   return colors[Math.floor(Math.random() * colors.length)];
 }
 
@@ -124,23 +316,84 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
   }
 
   const baseCount = 80; 
-  const particleCount = shell.text ? 0 : Math.floor(baseCount * countMultiplier); 
+  const particleCount = (shell.text || shell.pattern) ? 0 : Math.floor(baseCount * countMultiplier); 
   
-  // 1. Text Explosion (Optimized for Clarity)
+  // 0. PATTERN EXPLOSION
+  if (shell.pattern) {
+      const points = getPatternPoints(shell.pattern);
+      
+      // Determine pattern colors
+      let patternColors = [pickColor(color)];
+      if (color === 'random') {
+        // Random bright color for patterns if random is selected
+        patternColors = [`hsl(${Math.random() * 360}, 100%, 75%)`];
+      }
+      
+      // Special overrides
+      if (shell.pattern === '2026') patternColors = PALETTES['gold'];
+      if (shell.pattern === 'heart') patternColors = ['#FF0000', '#FF69B4']; 
+      
+      points.forEach(pt => {
+        const px = shell.x + pt.x;
+        const py = shell.y + pt.y;
+        
+        particles.push({
+            x: px, y: py,
+            initialX: px, initialY: py,
+            holding: 40,
+            vx: (random(-0.02, 0.02) + shell.vx * 0.02),
+            vy: (random(-0.02, 0.02) + shell.vy * 0.02),
+            life: random(150, 220),
+            maxLife: 220,
+            color: patternColors[Math.floor(Math.random()*patternColors.length)],
+            alpha: 1,
+            size: random(3.0, 5.0),
+            type: 'text',
+            shape: 'square',
+            friction: 0.96,
+            gravity: 0.002,
+            flicker: true
+        });
+      });
+      
+      // Sparkle surround
+      for(let i=0; i<30; i++) {
+        const angle = random(0, Math.PI*2);
+        const s = random(10, 30);
+        particles.push({
+            x: shell.x, y: shell.y,
+            vx: Math.cos(angle)*s, vy: Math.sin(angle)*s,
+            life: random(40, 80), maxLife: 80,
+            color: '#FFF', alpha: 1, size: random(1,2),
+            type: 'spark', shape: 'circle',
+            friction: 0.9, gravity: 0.05
+        });
+      }
+      return particles;
+  }
+
+  // 1. Text Explosion
   if (shell.text) {
     const points = getTextPoints(shell.text, size === 'large' ? 140 : 100);
     
-    // Explicitly choose bright colors for text readability
-    let textPalette = color;
+    // Dynamic Text Color Generation
+    let textColors = ['#FFFFFF', '#FFD700', '#E0FFFF', '#FF69B4']; 
     if (color === 'random') {
-       // Prefer gold, silver, or mint for high contrast text
-       const highContrast = ['gold', 'silver', 'mint'];
-       textPalette = highContrast[Math.floor(Math.random() * highContrast.length)];
+       // Generate a random vibrant palette for this specific shell
+       const baseHue = Math.random() * 360;
+       textColors = [
+           `hsl(${baseHue}, 100%, 80%)`,
+           `hsl(${(baseHue + 30) % 360}, 100%, 70%)`,
+           '#FFFFFF'
+       ];
+    } else if (PALETTES[color as keyof typeof PALETTES]) {
+       textColors = PALETTES[color as keyof typeof PALETTES];
     }
+    
+    const getRandomTextColor = () => textColors[Math.floor(Math.random() * textColors.length)];
 
     points.forEach((pt) => {
-      // Very high density (keep almost all points)
-      if (Math.random() > 0.95) return; 
+      if (Math.random() > 0.96) return; 
 
       const px = shell.x + pt.x;
       const py = shell.y + pt.y;
@@ -150,24 +403,24 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
         y: py,
         initialX: px,
         initialY: py,
-        holding: 50, // Hold slightly longer
-        vx: (random(-0.1, 0.1) + shell.vx * 0.05), // Minimal drift
-        vy: (random(-0.1, 0.1) + shell.vy * 0.05),
-        life: random(180, 240), // Live longer
-        maxLife: 240,
-        color: pickColor(textPalette), 
+        holding: 60, 
+        vx: (random(-0.05, 0.05) + shell.vx * 0.02), 
+        vy: (random(-0.05, 0.05) + shell.vy * 0.02),
+        life: random(200, 300), 
+        maxLife: 300,
+        color: getRandomTextColor(), 
         alpha: 1,
-        size: random(2.0, 3.5), // Larger particles
+        size: random(3.0, 4.5), 
         type: 'text',
-        shape: shape,
-        friction: 0.90, // Higher friction = stops moving faster = cleaner text
-        gravity: 0.002, // Very low gravity = doesn't sag
+        shape: 'square', 
+        friction: 0.96, 
+        gravity: 0.001, 
         flicker: true 
       });
     });
     
-    // Minimal Bang effect around text (so it doesn't obscure)
-    for (let i = 0; i < 15; i++) { 
+    // Minimal Bang
+    for (let i = 0; i < 20; i++) { 
        const angle = random(0, Math.PI * 2);
        const speed = random(5, 15);
        particles.push({
@@ -175,15 +428,15 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
          y: shell.y,
          vx: Math.cos(angle) * speed,
          vy: Math.sin(angle) * speed,
-         life: random(20, 40),
-         maxLife: 40,
+         life: random(30, 50),
+         maxLife: 50,
          color: '#ffffff',
-         alpha: 0.8,
+         alpha: 0.9,
          size: random(1, 3),
          type: 'spark',
          shape: 'circle',
          friction: 0.85, 
-         gravity: 0
+         gravity: 0.05
        });
     }
     return particles;
@@ -208,7 +461,7 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
         maxLife: 250,
         color: baseC,
         alpha: 1,
-        size: random(1.0, 2.0),
+        size: random(1.5, 2.5), 
         type: 'spark',
         shape: shape,
         friction: 0.92, 
@@ -234,12 +487,12 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
         maxLife: 180,
         color: c,
         alpha: 1,
-        size: random(2, 4),
+        size: random(2.5, 4.5), 
         type: 'spark',
         shape: shape,
         friction: 0.93,
         gravity: 0.02,
-        flicker: true // Key for strobe
+        flicker: true
       });
     }
   }
@@ -279,7 +532,7 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
       const innerCount = Math.floor(ringCount * 0.6);
       for (let i = 0; i < innerCount; i++) {
         const angle = (Math.PI * 2 * i) / innerCount;
-        const speed = 5 * speedMultiplier; // Slower
+        const speed = 5 * speedMultiplier;
         
         particles.push({
           x: shell.x,
@@ -288,7 +541,7 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
           vy: Math.sin(angle) * speed,
           life: random(80, 120),
           maxLife: 120,
-          color: innerColor, // Often different color
+          color: innerColor,
           alpha: 1,
           size: random(2, 3),
           type: 'spark',
@@ -303,7 +556,7 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
   
   // --- GALAXY (Spiral) ---
   else if (effect === 'galaxy') {
-    const arms = random(3, 6); // Randomize arms
+    const arms = random(3, 6); 
     const pointsPerArm = Math.floor(particleCount / arms);
     
     for (let arm = 0; arm < arms; arm++) {
@@ -323,7 +576,7 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
                 maxLife: 160,
                 color: armColor,
                 alpha: 1,
-                size: random(1, 3),
+                size: random(1.5, 3.5),
                 type: 'spark',
                 shape: shape,
                 friction: 0.94,
@@ -334,9 +587,8 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
     }
   }
 
-  // --- CLASSIC (Peony/Chrysanthemum) ---
+  // --- CLASSIC ---
   else {
-    // Randomize style: Peony (loose) vs Chrysanthemum (streaky)
     const style = Math.random() > 0.5 ? 'peony' : 'streak';
     
     for (let i = 0; i < particleCount; i++) {
@@ -355,7 +607,7 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
         size: random(2, 4),
         type: 'spark',
         shape: shape,
-        friction: style === 'peony' ? 0.92 : 0.96, // Drag variation
+        friction: style === 'peony' ? 0.92 : 0.96, 
         gravity: 0.03,
         flicker: Math.random() > 0.3
       });
@@ -417,10 +669,13 @@ export const updatePhysics = (
     // Handle Holding State (Pre-Explosion Animation)
     if (p.holding && p.holding > 0 && p.initialX !== undefined && p.initialY !== undefined) {
        p.holding--;
-       const shakeIntensity = 0.5; // Reduced shake for clarity
+       // Minimal shake for text/pattern clarity
+       const shakeIntensity = (p.type === 'text') ? 0.2 : 0.5;
        p.x = p.initialX + (Math.random() - 0.5) * shakeIntensity;
        p.y = p.initialY + (Math.random() - 0.5) * shakeIntensity;
-       p.alpha = 0.8 + Math.sin(Date.now() / 40) * 0.2; 
+       
+       // Pulse effect while holding
+       p.alpha = 0.9 + Math.sin(Date.now() / 50) * 0.1; 
     } else {
         // Standard Physics
         p.x += p.vx;
@@ -432,19 +687,22 @@ export const updatePhysics = (
         
         p.life -= 1;
 
-        // Visual Decay - Faster fade out at end for cleanliness
+        // Visual Decay
         const lifeRatio = p.life / p.maxLife;
-        p.alpha = lifeRatio > 0.3 ? 1 : lifeRatio / 0.3;
+        // Keep text/patterns visible longer at full brightness
+        const threshold = p.type === 'text' ? 0.15 : 0.3;
+        p.alpha = lifeRatio > threshold ? 1 : lifeRatio / threshold;
     }
 
-    // Intense Flicker (Glitter effect)
+    // Intense Flicker
     let renderAlpha = p.alpha;
     if (p.flicker) {
-       // Strobe effect: blink on and off
        if (Math.random() > 0.5) {
          renderAlpha = p.alpha;
        } else {
-         renderAlpha = 0.4 * p.alpha; // Don't go fully dark, helps video recording
+         // Text flickers less aggressively to maintain readability
+         const dimFactor = p.type === 'text' ? 0.7 : 0.4;
+         renderAlpha = dimFactor * p.alpha; 
        }
     }
 

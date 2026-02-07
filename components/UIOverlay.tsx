@@ -1,14 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { generateNewYearWishes } from '../services/geminiService';
-import { Sparkles, Send, Wand2, Info, Settings2, Palette, Box, Circle, Scaling, Volume2, VolumeX, Snowflake, Activity, Aperture, Star, Share2, Download, X, Copy, Camera, Video, Loader2, Zap, Disc, Rocket, AlignJustify, Fan } from 'lucide-react';
-import { FireworkSettings, ParticleShape, FireworkSize, FireworkEffect } from '../types';
+import { Sparkles, Send, Wand2, Info, Settings2, Palette, Box, Circle, Scaling, Volume2, VolumeX, Snowflake, Activity, Aperture, Star, Share2, Download, X, Copy, Camera, Video, Loader2, Zap, Disc, Rocket, AlignJustify, Fan, Crown, Gauge, Heart } from 'lucide-react';
+import { FireworkSettings, ParticleShape, FireworkSize, FireworkEffect, PatternType } from '../types';
 import { toggleMute, getMuteState } from '../utils/soundEngine';
 
 interface UIOverlayProps {
   onLaunch: (text: string, settings: FireworkSettings) => void;
-  onAutoFireToggle: (enabled: boolean) => void;
-  onTriggerSpecial: (type: 'salvo' | 'strafe' | 'fan') => void;
+  onAutoFireToggle: (enabled: boolean, speedMultiplier: number) => void;
+  onTriggerSpecial: (type: 'salvo' | 'strafe' | 'fan' | 'finale') => void;
   getSnapshot: () => string | null;
   startVideoRecording: () => Promise<Blob | null>;
 }
@@ -63,6 +63,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle, onTri
   const [wishes, setWishes] = useState<string[]>(TEMPLATES);
   const [loading, setLoading] = useState(false);
   const [autoFire, setAutoFire] = useState(true); 
+  const [fireSpeed, setFireSpeed] = useState(50); // 0 to 100
   const [showSettings, setShowSettings] = useState(false);
   const [muted, setMuted] = useState(false);
   
@@ -74,6 +75,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle, onTri
   
   // Recording State
   const [isRecording, setIsRecording] = useState(false);
+  const [recordProgress, setRecordProgress] = useState(0);
   
   // Customization State
   const [settings, setSettings] = useState<FireworkSettings>({
@@ -84,7 +86,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle, onTri
   });
 
   useEffect(() => {
-    onAutoFireToggle(true);
+    // Initial Sync
+    onAutoFireToggle(true, 1);
   }, []);
 
   const handleLaunch = (e?: React.FormEvent) => {
@@ -108,7 +111,24 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle, onTri
   const toggleAutoFire = () => {
     const newState = !autoFire;
     setAutoFire(newState);
-    onAutoFireToggle(newState);
+    onAutoFireToggle(newState, getSpeedMultiplier(fireSpeed));
+  };
+  
+  const handleSpeedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value);
+    setFireSpeed(val);
+    if (autoFire) {
+        onAutoFireToggle(true, getSpeedMultiplier(val));
+    }
+  };
+
+  // Convert slider 0-100 to multiplier (High slider = Low delay)
+  const getSpeedMultiplier = (val: number) => {
+    // 0 -> slow (0.3x speed / 3x delay)
+    // 50 -> normal (1x)
+    // 100 -> crazy (4x speed / 0.25x delay)
+    if (val < 50) return 0.3 + (val / 50) * 0.7; 
+    return 1 + ((val - 50) / 50) * 3;
   };
 
   const handleMuteToggle = (e: React.MouseEvent) => {
@@ -132,14 +152,23 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle, onTri
   const handleVideoRecordClick = async () => {
     if (isRecording) return;
     setIsRecording(true);
+    setRecordProgress(0);
+
+    // Countdown effect simulation
+    const interval = setInterval(() => {
+        setRecordProgress(prev => Math.min(prev + 10, 100));
+    }, 1000); // Rough progress for 10s
     
     try {
       // Force enable autofire during recording to ensure content
-      if (!autoFire) onAutoFireToggle(true);
+      if (!autoFire) onAutoFireToggle(true, getSpeedMultiplier(fireSpeed));
 
       const blob = await startVideoRecording();
       
-      if (!autoFire) onAutoFireToggle(false); // Restore state if needed
+      clearInterval(interval);
+      setRecordProgress(0);
+
+      if (!autoFire) onAutoFireToggle(false, 1); // Restore state if needed
       
       if (blob) {
         const url = URL.createObjectURL(blob);
@@ -149,6 +178,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle, onTri
         setShowShareModal(true);
       }
     } catch (err) {
+      clearInterval(interval);
       console.error("Recording failed", err);
       alert("无法录制视频，请检查浏览器兼容性");
     } finally {
@@ -226,11 +256,14 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle, onTri
             <button 
               onClick={handleVideoRecordClick}
               disabled={isRecording}
-              className={`p-3 rounded-full backdrop-blur-md border transition-all shadow-lg relative ${isRecording ? 'bg-red-900/50 border-red-500' : 'bg-gradient-to-br from-red-600 to-red-500 border-red-400 hover:scale-105'}`}
-              title="录制动图/视频"
+              className={`p-3 rounded-full backdrop-blur-md border transition-all shadow-lg relative min-w-[50px] ${isRecording ? 'bg-red-900/50 border-red-500' : 'bg-gradient-to-br from-red-600 to-red-500 border-red-400 hover:scale-105'}`}
+              title="录制10秒高清视频"
             >
               {isRecording ? (
-                <Loader2 size={24} className="text-white animate-spin" />
+                <div className="flex flex-col items-center">
+                   <Loader2 size={20} className="text-white animate-spin" />
+                   <span className="text-[10px] text-white font-mono mt-0.5">{recordProgress}%</span>
+                </div>
               ) : (
                 <Video size={24} className="text-white animate-pulse-slow" />
               )}
@@ -320,6 +353,22 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle, onTri
            <h3 className="text-white font-serif mb-4 flex items-center gap-2 text-sm uppercase tracking-wider">
              <Settings2 size={16} /> 烟花设置
            </h3>
+
+           {/* Speed Control */}
+           <div className="mb-4 bg-white/5 p-3 rounded-lg">
+             <label className="text-gray-300 text-xs mb-2 flex items-center justify-between">
+                <span className="flex items-center gap-2"><Gauge size={14} /> 发射速度</span>
+                <span className="text-[10px] text-cyan-300">{fireSpeed > 80 ? '狂暴' : fireSpeed > 40 ? '正常' : '悠闲'}</span>
+             </label>
+             <input 
+               type="range" 
+               min="0" 
+               max="100" 
+               value={fireSpeed} 
+               onChange={handleSpeedChange}
+               className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+             />
+           </div>
            
            <div className="mb-4">
              <label className="text-gray-400 text-xs mb-2 flex items-center gap-2"><Palette size={14} /> 颜色风格</label>
@@ -414,24 +463,30 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ onLaunch, onAutoFireToggle, onTri
         </div>
         
         {/* SKILLS BAR */}
-        <div className="flex justify-center gap-2">
+        <div className="flex flex-wrap justify-center gap-2">
              <button
                onClick={() => onTriggerSpecial('strafe')}
                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-cyan-600/40 hover:bg-cyan-500/60 border border-cyan-400/30 text-cyan-100 text-xs backdrop-blur transition-all hover:scale-105"
              >
-               <AlignJustify size={14} className="rotate-90" /> 极速扫射
+               <AlignJustify size={14} className="rotate-90" /> 加特林
              </button>
              <button
                onClick={() => onTriggerSpecial('salvo')}
                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-purple-600/40 hover:bg-purple-500/60 border border-purple-400/30 text-purple-100 text-xs backdrop-blur transition-all hover:scale-105"
              >
-               <Rocket size={14} /> 万箭齐发
+               <Heart size={14} /> 图案齐射
              </button>
              <button
                onClick={() => onTriggerSpecial('fan')}
                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-yellow-600/40 hover:bg-yellow-500/60 border border-yellow-400/30 text-yellow-100 text-xs backdrop-blur transition-all hover:scale-105"
              >
-               <Fan size={14} /> 五谷丰登
+               <Fan size={14} /> 密集扇形
+             </button>
+             <button
+               onClick={() => onTriggerSpecial('finale')}
+               className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-rose-600/40 hover:bg-rose-500/60 border border-rose-400/30 text-rose-100 text-xs backdrop-blur transition-all hover:scale-105 font-bold shadow-[0_0_10px_rgba(244,63,94,0.5)]"
+             >
+               <Crown size={14} /> 终极审判
              </button>
         </div>
 

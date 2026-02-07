@@ -7,6 +7,7 @@ export interface Point {
 export type ParticleShape = 'circle' | 'square';
 export type FireworkSize = 'small' | 'medium' | 'large';
 export type FireworkEffect = 'classic' | 'willow' | 'ring' | 'galaxy' | 'strobe' | 'double-ring';
+export type PatternType = 'heart' | 'star' | 'smile' | 'diamond' | '2026' | 'spiral' | 'crown' | 'music' | 'butterfly';
 
 export interface FireworkSettings {
   color: string; // 'random' or hex code
@@ -31,7 +32,7 @@ export interface Particle {
   friction: number;
   gravity: number;
   flicker?: boolean;
-  // Text animation properties
+  // Text/Pattern animation properties
   holding?: number;
   initialX?: number;
   initialY?: number;
@@ -47,6 +48,7 @@ export interface FireworkShell {
   hue: number; // specialized for random
   color?: string; // override for specific color
   text?: string;
+  pattern?: PatternType; // New: Support for patterns
   settings: FireworkSettings;
   completed: boolean;
 }

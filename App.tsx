@@ -8,8 +8,10 @@ import { initAudio, resumeAudio } from './utils/soundEngine';
 function App() {
   const fireworksRef = useRef<FireworksCanvasHandle>(null);
   
-  // Use a Ref to track the 'active' state synchronously for the timeout loop
+  // Ref to track the 'active' state synchronously
   const isAutoFireActiveRef = useRef(false);
+  // Ref to track the current speed multiplier
+  const speedMultiplierRef = useRef(1);
   const autoFireTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleLaunch = (text: string, settings: FireworkSettings) => {
@@ -24,17 +26,16 @@ function App() {
   };
 
   const scheduleNextFire = () => {
-    // Strictly check if active
     if (!isAutoFireActiveRef.current) return;
 
-    // Performance aware delay: 
-    // If we are just running text fireworks or heavy load, maybe slow down slightly?
-    const baseDelay = 800;
-    const randomDelay = Math.random() * 1500;
+    // Base delay logic adjusted by speedMultiplier
+    // Multiplier > 1 means faster (shorter delay)
+    // Multiplier < 1 means slower (longer delay)
+    const baseDelay = 1200 / speedMultiplierRef.current;
+    const randomDelay = Math.random() * (1000 / speedMultiplierRef.current);
     const nextDelay = baseDelay + randomDelay;
 
     autoFireTimeoutRef.current = setTimeout(() => {
-      // Double check inside the timeout callback
       if (!isAutoFireActiveRef.current) return;
       
       fireworksRef.current?.autoLaunch();
@@ -42,26 +43,23 @@ function App() {
     }, nextDelay);
   };
 
-  const handleAutoFireToggle = (enabled: boolean) => {
+  const handleAutoFireToggle = (enabled: boolean, speedMult: number) => {
     isAutoFireActiveRef.current = enabled;
+    speedMultiplierRef.current = speedMult;
 
-    if (enabled) {
-      // Start the loop if not already running
-      if (!autoFireTimeoutRef.current) {
-         // Fire immediately once, then schedule
-         fireworksRef.current?.autoLaunch();
-         scheduleNextFire();
-      }
-    } else {
-      // Stop the loop immediately
-      if (autoFireTimeoutRef.current) {
+    // Clear existing timeout to apply new speed immediately if re-toggled
+    if (autoFireTimeoutRef.current) {
         clearTimeout(autoFireTimeoutRef.current);
         autoFireTimeoutRef.current = null;
-      }
+    }
+
+    if (enabled) {
+         fireworksRef.current?.autoLaunch();
+         scheduleNextFire();
     }
   };
 
-  const handleTriggerSpecial = (type: 'salvo' | 'strafe' | 'fan') => {
+  const handleTriggerSpecial = (type: 'salvo' | 'strafe' | 'fan' | 'finale') => {
     fireworksRef.current?.triggerSpecial(type);
   };
 
@@ -75,10 +73,10 @@ function App() {
   };
 
   const handleStartVideoRecording = async () => {
-    return await fireworksRef.current?.recordVideo(4000) || null;
+    // Increased duration to 10 seconds for better capture of text/finale
+    return await fireworksRef.current?.recordVideo(10000) || null;
   };
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       isAutoFireActiveRef.current = false;

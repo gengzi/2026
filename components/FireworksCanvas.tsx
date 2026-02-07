@@ -1,16 +1,24 @@
 
 import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { FireworkShell, Particle, FireworkSettings, FireworkEffect } from '../types';
+import { FireworkShell, Particle, FireworkSettings, FireworkEffect, PatternType } from '../types';
 import { updatePhysics, random } from '../utils/fireworksEngine';
 import { playLaunchSound } from '../utils/soundEngine';
 import { getRandomHotWord } from '../data/hotWords';
 
 export interface FireworksCanvasHandle {
   launch: (x: number, y: number, text?: string, settings?: FireworkSettings) => void;
+  launchPattern: (pattern: PatternType) => void;
   autoLaunch: () => void;
-  triggerSpecial: (type: 'salvo' | 'strafe' | 'fan') => void;
+  triggerSpecial: (type: 'salvo' | 'strafe' | 'fan' | 'finale') => void;
   snapshot: () => string | null;
   recordVideo: (durationMs: number) => Promise<Blob | null>;
+}
+
+// Track recent text explosions to prevent overlap
+interface TextZone {
+  x: number;
+  y: number;
+  timestamp: number;
 }
 
 const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
@@ -20,6 +28,9 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
   const animationRef = useRef<number>(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  
+  // Store recent text explosion locations
+  const textZonesRef = useRef<TextZone[]>([]);
 
   // Default settings if none provided
   const defaultSettings: FireworkSettings = {
@@ -38,28 +49,87 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
       const safeX = Math.max(w * 0.1, Math.min(x, w * 0.9));
       const safeY = Math.max(h * 0.1, Math.min(y, h * 0.6));
 
-      createShell(safeX, safeY, text, settings || defaultSettings);
+      createShell(safeX, safeY, text, undefined, settings || defaultSettings);
+    },
+    launchPattern(pattern: PatternType) {
+       if (!canvasRef.current) return;
+       const w = canvasRef.current.width;
+       const h = canvasRef.current.height;
+       // Launch in center area
+       createShell(w/2, h*0.3, undefined, pattern, defaultSettings);
     },
     autoLaunch() {
       if (canvasRef.current) {
         const w = canvasRef.current.width;
         const h = canvasRef.current.height;
-        
-        const hasText = Math.random() > 0.3;
-        const text = hasText ? getRandomHotWord() : undefined;
-        
-        const paddingPercent = hasText ? 0.25 : 0.15; 
-        
-        const x = random(w * paddingPercent, w * (1 - paddingPercent));
-        const y = random(h * 0.15, h * 0.45); 
-        
+        const now = Date.now();
+
+        // Clean up old zones (> 4 seconds)
+        textZonesRef.current = textZonesRef.current.filter(z => now - z.timestamp < 4000);
+
+        // Random Logic: Text > Pattern > Normal
         const r = Math.random();
+        let text: string | undefined;
+        let pattern: PatternType | undefined;
+        let isSpecial = false;
+        
+        if (r > 0.85) {
+             const patterns: PatternType[] = ['heart', 'star', 'smile', 'diamond', 'spiral', 'crown', 'music', 'butterfly'];
+             pattern = patterns[Math.floor(Math.random() * patterns.length)];
+             isSpecial = true;
+        } else if (r > 0.60) {
+             text = getRandomHotWord();
+             isSpecial = true;
+        }
+        
+        // Overlap Check for Text/Pattern
+        let x: number, y: number;
+        let validPosition = false;
+        
+        // Try finding a valid position
+        const maxAttempts = 5;
+        for (let i = 0; i < maxAttempts; i++) {
+            const paddingPercent = isSpecial ? 0.2 : 0.15; 
+            x = random(w * paddingPercent, w * (1 - paddingPercent));
+            y = random(h * 0.15, h * 0.45); 
+
+            if (isSpecial) {
+                // Check distance against existing zones
+                const tooClose = textZonesRef.current.some(zone => {
+                    const dx = zone.x - x;
+                    const dy = zone.y - y;
+                    return Math.hypot(dx, dy) < 250; // Minimum distance 250px
+                });
+                if (!tooClose) {
+                    validPosition = true;
+                    break;
+                }
+            } else {
+                validPosition = true;
+                break;
+            }
+        }
+        
+        // If we couldn't find a spot for special text, fallback to normal firework
+        if (isSpecial && !validPosition) {
+            text = undefined;
+            pattern = undefined;
+            x = random(w * 0.1, w * 0.9);
+            y = random(h * 0.15, h * 0.45);
+        }
+
+        // Register new zone if special
+        if (text || pattern) {
+            textZonesRef.current.push({ x, y, timestamp: now });
+        }
+        
+        const effectRoll = Math.random();
         let effect: FireworkEffect = 'classic';
-        if (r > 0.90) effect = 'galaxy';
-        else if (r > 0.80) effect = 'strobe';
-        else if (r > 0.70) effect = 'double-ring';
-        else if (r > 0.60) effect = 'ring';
-        else if (r > 0.45) effect = 'willow';
+        if (effectRoll > 0.90) effect = 'galaxy';
+        else if (effectRoll > 0.80) effect = 'strobe';
+        else if (effectRoll > 0.70) effect = 'double-ring';
+        else if (effectRoll > 0.60) effect = 'ring';
+        else if (effectRoll > 0.45) effect = 'willow';
 
         const randomSettings: FireworkSettings = {
           color: 'random',
@@ -68,10 +138,10 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
           effect: effect
         };
 
-        createShell(x, y, text, randomSettings);
+        createShell(x!, y!, text, pattern, randomSettings);
       }
     },
-    triggerSpecial(type: 'salvo' | 'strafe' | 'fan') {
+    triggerSpecial(type: 'salvo' | 'strafe' | 'fan' | 'finale') {
       if (!canvasRef.current) return;
       const w = canvasRef.current.width;
       const h = canvasRef.current.height;
@@ -80,60 +150,109 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
       const randomColor = () => colors[Math.floor(Math.random() * colors.length)];
 
       if (type === 'salvo') {
-        // 万箭齐发: 10-15 shots at once across screen
-        const count = 12;
+        // 图案齐射 (Pattern Salvo)
+        const count = 8;
+        const pattern: PatternType = (['heart', 'star', 'music', 'butterfly'] as PatternType[])[Math.floor(Math.random()*4)];
         const color = randomColor();
+        
         for (let i = 0; i < count; i++) {
-            const x = (w * 0.1) + ((w * 0.8) / count) * i;
-            const y = h * 0.2 + Math.random() * (h * 0.2); // Upper area
-            // Slight delay between each so it's not a single frame lag spike
+            const x = (w * 0.15) + ((w * 0.7) / (count-1)) * i;
+            const y = h * 0.3;
             setTimeout(() => {
-                createShell(x, y, undefined, {
+                createShell(x, y, undefined, pattern, {
                     color: color,
-                    size: 'medium',
-                    shape: 'circle',
-                    effect: 'willow' // Willow looks best for salvo
+                    size: 'large',
+                    shape: 'square',
+                    effect: 'classic'
                 });
-            }, i * 50);
+            }, i * 80);
         }
       } else if (type === 'strafe') {
-        // 扫射: Rapid fire left to right
-        const count = 20;
+        // 极速加特林 (Gatling Gun) - Very Fast
+        const count = 40;
         for (let i = 0; i < count; i++) {
             setTimeout(() => {
                 const x = (w * 0.1) + ((w * 0.8) / count) * i;
-                const y = h * 0.3 + Math.sin(i * 0.5) * (h * 0.1); // Wave pattern
-                createShell(x, y, undefined, {
+                const y = h * 0.4 + Math.sin(i * 0.8) * (h * 0.1); 
+                createShell(x, y, undefined, undefined, {
                     color: randomColor(),
                     size: 'small',
                     shape: 'square',
-                    effect: 'strobe' // Strobe for machine gun feel
+                    effect: 'strobe'
                 });
-            }, i * 80); // Fast timing
+            }, i * 30); // Super fast 30ms delay
         }
       } else if (type === 'fan') {
-        // 五谷丰登: Fan out from center
-        const centerX = w / 2;
-        const count = 10;
+        // 密集扇形 (Dense Fan)
+        const count = 15;
         const color = randomColor();
         for (let i = 0; i < count; i++) {
-             // Calculate target based on angle
-             const angle = Math.PI + (Math.PI / (count - 1)) * i; // Semi-circle arch
-             const radius = h * 0.4;
-             // Map angle to screen coordinates roughly
              const t = i / (count - 1);
-             const x = (w * 0.2) + (w * 0.6) * t;
-             const y = h * 0.2 + Math.abs(t - 0.5) * (h * 0.2);
+             const x = (w * 0.1) + (w * 0.8) * t;
+             const y = h * 0.2 + Math.abs(t - 0.5) * (h * 0.3);
              
              setTimeout(() => {
-                createShell(x, y, undefined, {
+                createShell(x, y, undefined, undefined, {
                     color: color,
                     size: 'large',
                     shape: 'circle',
-                    effect: 'double-ring'
+                    effect: 'willow'
                 });
-             }, i * 100);
+             }, i * 60);
         }
+      } else if (type === 'finale') {
+        // 终极审判 (The Nuclear Option)
+        
+        // 1. Chaos Phase
+        for(let i=0; i<20; i++) {
+            setTimeout(() => {
+                createShell(random(w*0.1, w*0.9), random(h*0.2, h*0.6), undefined, undefined, {
+                    color: randomColor(), size: 'medium', shape: 'circle', effect: 'strobe'
+                });
+            }, i * 50);
+        }
+
+        // 2. Pattern Barrage
+        setTimeout(() => {
+            const patterns: PatternType[] = ['heart', 'smile', 'diamond', 'spiral', 'butterfly'];
+            for(let i=0; i<6; i++) {
+                setTimeout(() => {
+                   createShell(random(w*0.1, w*0.9), h*0.3, undefined, patterns[i%patterns.length], {
+                        color: 'random', size: 'large', shape: 'square', effect: 'classic'
+                   });
+                }, i * 300);
+            }
+        }, 1200);
+
+        // 3. Wall of Willows
+        setTimeout(() => {
+            for(let i=0; i<12; i++) {
+                createShell((w/12)*i + 50, h*0.25, undefined, undefined, {
+                    color: 'gold', size: 'large', shape: 'circle', effect: 'willow'
+                });
+            }
+        }, 3000);
+        
+        // 4. Grand Finale Text
+        setTimeout(() => {
+             createShell(w/2, h*0.2, undefined, '2026', {
+                 color: 'gold', size: 'large', shape: 'square', effect: 'classic'
+             });
+             // Flanking crowns
+             createShell(w*0.2, h*0.3, undefined, 'crown', { color: 'silver', size: 'medium', shape: 'square', effect: 'classic'});
+             createShell(w*0.8, h*0.3, undefined, 'crown', { color: 'silver', size: 'medium', shape: 'square', effect: 'classic'});
+        }, 4500);
+
+        // 5. Whiteout
+        setTimeout(() => {
+             for(let i=0; i<30; i++) {
+                 setTimeout(() => {
+                     createShell(random(w*0.05, w*0.95), random(h*0.05, h*0.5), undefined, undefined, {
+                         color: 'white', size: 'large', shape: 'circle', effect: 'strobe'
+                     });
+                 }, i * 20);
+             }
+        }, 6000);
       }
     },
     snapshot() {
@@ -160,7 +279,6 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
       const canvas = canvasRef.current;
       if (!canvas) return null;
 
-      // Prioritize H.264 (MP4-friendly) or VP9 (High Quality WebM)
       const mimeTypes = [
         'video/webm;codecs=vp9',
         'video/webm;codecs=h264',
@@ -174,13 +292,12 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
         return null;
       }
 
-      // HIGH QUALITY RECORDING SETTINGS
       const stream = canvas.captureStream(60); 
       
       try {
         const recorder = new MediaRecorder(stream, {
           mimeType,
-          videoBitsPerSecond: 8000000 
+          videoBitsPerSecond: 15000000 
         });
 
         recordedChunksRef.current = [];
@@ -214,7 +331,13 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
     }
   }));
 
-  const createShell = (targetX: number, targetY: number, text?: string, settings: FireworkSettings = defaultSettings) => {
+  const createShell = (
+      targetX: number, 
+      targetY: number, 
+      text?: string, 
+      pattern?: PatternType, 
+      settings: FireworkSettings = defaultSettings
+  ) => {
     if (!canvasRef.current) return;
     const startX = canvasRef.current.width / 2 + random(-100, 100); 
     const startY = canvasRef.current.height;
@@ -235,6 +358,7 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
       hue: random(0, 360),
       color: settings.color,
       text,
+      pattern,
       settings,
       completed: false
     });
@@ -257,14 +381,10 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
     resize();
 
     const loop = () => {
-      // Clean Background Logic:
-      // Increased opacity to 0.70 to create a sharper "fade" which looks better in video compression.
-      // Higher opacity = less trails, higher contrast.
       ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = 'rgba(2, 6, 23, 0.70)'; 
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.85)'; 
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw particles with additive blending for glow
       ctx.globalCompositeOperation = 'lighter';
       updatePhysics(shellsRef.current, particlesRef.current, ctx, canvas.width, canvas.height);
 
@@ -295,8 +415,14 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
       } else {
          targetY = Math.max(h * 0.1, rawY);
       }
+      
+      // Chance to fire a random pattern on click
+      const patterns: PatternType[] = ['heart', 'star', 'smile', 'spiral', 'butterfly', 'music'];
+      const pattern: PatternType | undefined = Math.random() > 0.7 
+          ? patterns[Math.floor(Math.random()*patterns.length)] 
+          : undefined;
 
-      createShell(safeX, targetY, undefined, defaultSettings);
+      createShell(safeX, targetY, undefined, pattern, defaultSettings);
     }
   };
 
