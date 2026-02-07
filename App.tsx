@@ -2,7 +2,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import FireworksCanvas, { FireworksCanvasHandle } from './components/FireworksCanvas';
 import UIOverlay from './components/UIOverlay';
-import { FireworkSettings } from './types';
+import { FireworkSettings, PatternType } from './types';
 import { initAudio, resumeAudio } from './utils/soundEngine';
 
 function App() {
@@ -15,14 +15,48 @@ function App() {
   const autoFireTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleLaunch = (text: string, settings: FireworkSettings) => {
-    // Launch towards the center-ish area but slightly randomized
+    // Immediate launch of the main text
     const w = window.innerWidth;
     const h = window.innerHeight;
+    fireworksRef.current?.launch(w / 2, h * 0.3, text, undefined, settings);
+
+    // BARRAGE LOGIC: Continuous firing for 5 seconds
+    const duration = 5000;
+    const startTime = Date.now();
     
-    const x = w * 0.5 + (Math.random() - 0.5) * (w * 0.6); 
-    const y = h * 0.2 + Math.random() * (h * 0.3);
-    
-    fireworksRef.current?.launch(x, y, text, settings);
+    const fireBarrage = () => {
+        const now = Date.now();
+        if (now - startTime > duration) return;
+
+        // Random target covering the entire upper screen (10% to 70% height)
+        const targetX = w * 0.1 + Math.random() * (w * 0.8);
+        const targetY = h * 0.1 + Math.random() * (h * 0.6); 
+
+        const r = Math.random();
+        
+        if (r < 0.50) {
+            // 50% chance to repeat the text (Significantly increased)
+            fireworksRef.current?.launch(targetX, targetY, text, undefined, settings);
+        } else if (r < 0.85) {
+            // 35% chance for a random pattern (Significantly increased)
+            const patterns: PatternType[] = ['heart', 'star', 'smile', 'diamond', 'spiral', 'crown', 'music', 'butterfly', 'lantern', 'coin', 'fish', 'snowflake'];
+            const p = patterns[Math.floor(Math.random() * patterns.length)];
+            fireworksRef.current?.launch(targetX, targetY, undefined, p, settings);
+        } else {
+            // 15% chance for a standard colorful firework
+            fireworksRef.current?.launch(targetX, targetY, undefined, undefined, {
+                ...settings,
+                color: 'random', 
+                size: Math.random() > 0.5 ? 'large' : 'medium'
+            });
+        }
+
+        // Schedule next shot (EXTREME rapid fire: 50-150ms)
+        setTimeout(fireBarrage, Math.random() * 100 + 50);
+    };
+
+    // Start the barrage
+    fireBarrage();
   };
 
   const scheduleNextFire = () => {

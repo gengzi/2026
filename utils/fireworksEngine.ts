@@ -130,7 +130,6 @@ export const getPatternPoints = (type: PatternType): Point[] => {
         points.push({x: -w + 2*w*t, y: h});
     }
     // Sides and spikes
-    // Simplified: Bottom Left -> Top Left Spike -> Middle Valley -> Middle Spike -> ...
     const spikes = [
         {x: -w, y: h},
         {x: -w*0.8, y: -h*0.5},
@@ -186,20 +185,82 @@ export const getPatternPoints = (type: PatternType): Point[] => {
   else if (type === 'butterfly') {
     const steps = 100;
     for(let i=0; i<steps; i++) {
-        const t = (i/steps) * 12 * Math.PI; // many cycles
-        // Butterfly curve approximation
-        // r = exp(cos(t)) - 2*cos(4t) + sin(t/12)^5
+        const t = (i/steps) * 12 * Math.PI; 
         const r = Math.exp(Math.cos(t)) - 2*Math.cos(4*t) + Math.pow(Math.sin(t/12), 5);
-        // Normalize roughly
         const rScaled = r * (scale * 0.25);
-        
-        // Since the curve is complex, we use parametric points directly
-        // Just rotate it correctly
         points.push({
             x: rScaled * Math.sin(t),
-            y: -rScaled * Math.cos(t) // Upright
+            y: -rScaled * Math.cos(t) 
         });
     }
+  }
+  else if (type === 'lantern') {
+      const w = scale * 0.7;
+      const h = scale * 0.9;
+      // Ellipse body
+      for(let t=0; t<Math.PI*2; t+=0.1) {
+          points.push({x: w*Math.cos(t), y: h*Math.sin(t)});
+          if(Math.random()>0.5) points.push({x: w*0.8*Math.cos(t), y: h*0.8*Math.sin(t)}); // Inner fill
+      }
+      // Top/Bottom blocks
+      for(let x=-w/2; x<=w/2; x+=4) points.push({x, y: -h});
+      for(let x=-w/2; x<=w/2; x+=4) points.push({x, y: h});
+      // Tassel
+      for(let y=h; y<=h*1.5; y+=4) points.push({x:0, y});
+  }
+  else if (type === 'coin') {
+      const r = scale * 0.8;
+      // Outer Circle
+      for(let t=0; t<Math.PI*2; t+=0.05) {
+          points.push({x: r*Math.cos(t), y: r*Math.sin(t)});
+          points.push({x: (r-4)*Math.cos(t), y: (r-4)*Math.sin(t)}); // Thickness
+      }
+      // Inner Square
+      const s = r * 0.4;
+      const step = 4;
+      for(let x=-s; x<=s; x+=step) { points.push({x, y: -s}); points.push({x, y: s}); }
+      for(let y=-s; y<=s; y+=step) { points.push({x: -s, y}); points.push({x: s, y}); }
+  }
+  else if (type === 'fish') {
+      // Simple fish shape
+      const len = scale;
+      const wid = scale * 0.6;
+      // Body (2 parabolas)
+      for(let t=-1; t<=1; t+=0.05) {
+          const x = t * len;
+          const yTop = wid * (1 - t*t);
+          const yBot = -wid * (1 - t*t);
+          points.push({x, y: yTop});
+          points.push({x, y: yBot});
+      }
+      // Tail
+      for(let t=0; t<=1; t+=0.1) {
+          points.push({x: -len - t*wid*0.5, y: t*wid});
+          points.push({x: -len - t*wid*0.5, y: -t*wid});
+      }
+      points.push({x:-len-wid*0.5, y:wid}, {x:-len-wid*0.5, y:-wid});
+  }
+  else if (type === 'snowflake') {
+      const r = scale;
+      const arms = 6;
+      for(let i=0; i<arms; i++) {
+          const angle = (Math.PI*2 * i) / arms;
+          const cx = Math.cos(angle);
+          const cy = Math.sin(angle);
+          // Main arm
+          for(let d=0; d<=r; d+=4) {
+              points.push({x: cx*d, y: cy*d});
+          }
+          // V shape on arm
+          const vDist = r * 0.6;
+          const vSize = r * 0.2;
+          const vAngle1 = angle + Math.PI/4;
+          const vAngle2 = angle - Math.PI/4;
+          for(let d=0; d<=vSize; d+=4) {
+               points.push({x: cx*vDist + Math.cos(vAngle1)*d, y: cy*vDist + Math.sin(vAngle1)*d});
+               points.push({x: cx*vDist + Math.cos(vAngle2)*d, y: cy*vDist + Math.sin(vAngle2)*d});
+          }
+      }
   }
   else if (type === '2026') {
       // Simplified grid for "2026"
@@ -330,8 +391,10 @@ export const explodeShell = (shell: FireworkShell): Particle[] => {
       }
       
       // Special overrides
-      if (shell.pattern === '2026') patternColors = PALETTES['gold'];
-      if (shell.pattern === 'heart') patternColors = ['#FF0000', '#FF69B4']; 
+      if (shell.pattern === '2026' || shell.pattern === 'coin') patternColors = PALETTES['gold'];
+      if (shell.pattern === 'heart' || shell.pattern === 'lantern') patternColors = ['#FF0000', '#FF69B4', '#FFD700']; 
+      if (shell.pattern === 'fish') patternColors = ['#FF4500', '#FFA500'];
+      if (shell.pattern === 'snowflake') patternColors = PALETTES['silver'];
       
       points.forEach(pt => {
         const px = shell.x + pt.x;

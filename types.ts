@@ -7,7 +7,7 @@ export interface Point {
 export type ParticleShape = 'circle' | 'square';
 export type FireworkSize = 'small' | 'medium' | 'large';
 export type FireworkEffect = 'classic' | 'willow' | 'ring' | 'galaxy' | 'strobe' | 'double-ring';
-export type PatternType = 'heart' | 'star' | 'smile' | 'diamond' | '2026' | 'spiral' | 'crown' | 'music' | 'butterfly';
+export type PatternType = 'heart' | 'star' | 'smile' | 'diamond' | '2026' | 'spiral' | 'crown' | 'music' | 'butterfly' | 'lantern' | 'coin' | 'fish' | 'snowflake';
 
 export interface FireworkSettings {
   color: string; // 'random' or hex code

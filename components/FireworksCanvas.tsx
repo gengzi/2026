@@ -6,7 +6,7 @@ import { playLaunchSound } from '../utils/soundEngine';
 import { getRandomHotWord } from '../data/hotWords';
 
 export interface FireworksCanvasHandle {
-  launch: (x: number, y: number, text?: string, settings?: FireworkSettings) => void;
+  launch: (x: number, y: number, text?: string, pattern?: PatternType, settings?: FireworkSettings) => void;
   launchPattern: (pattern: PatternType) => void;
   autoLaunch: () => void;
   triggerSpecial: (type: 'salvo' | 'strafe' | 'fan' | 'finale') => void;
@@ -41,7 +41,7 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
   };
 
   useImperativeHandle(ref, () => ({
-    launch(x: number, y: number, text?: string, settings?: FireworkSettings) {
+    launch(x: number, y: number, text?: string, pattern?: PatternType, settings?: FireworkSettings) {
       if (!canvasRef.current) return;
       const w = canvasRef.current.width;
       const h = canvasRef.current.height;
@@ -49,7 +49,7 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
       const safeX = Math.max(w * 0.1, Math.min(x, w * 0.9));
       const safeY = Math.max(h * 0.1, Math.min(y, h * 0.6));
 
-      createShell(safeX, safeY, text, undefined, settings || defaultSettings);
+      createShell(safeX, safeY, text, pattern, settings || defaultSettings);
     },
     launchPattern(pattern: PatternType) {
        if (!canvasRef.current) return;
@@ -74,7 +74,7 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
         let isSpecial = false;
         
         if (r > 0.85) {
-             const patterns: PatternType[] = ['heart', 'star', 'smile', 'diamond', 'spiral', 'crown', 'music', 'butterfly'];
+             const patterns: PatternType[] = ['heart', 'star', 'smile', 'diamond', 'spiral', 'crown', 'music', 'butterfly', 'lantern', 'coin', 'fish', 'snowflake'];
              pattern = patterns[Math.floor(Math.random() * patterns.length)];
              isSpecial = true;
         } else if (r > 0.60) {
@@ -152,7 +152,8 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
       if (type === 'salvo') {
         // 图案齐射 (Pattern Salvo)
         const count = 8;
-        const pattern: PatternType = (['heart', 'star', 'music', 'butterfly'] as PatternType[])[Math.floor(Math.random()*4)];
+        const patterns: PatternType[] = ['heart', 'star', 'music', 'butterfly', 'lantern', 'coin', 'fish', 'snowflake'];
+        const pattern = patterns[Math.floor(Math.random()*patterns.length)];
         const color = randomColor();
         
         for (let i = 0; i < count; i++) {
@@ -214,13 +215,13 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
 
         // 2. Pattern Barrage
         setTimeout(() => {
-            const patterns: PatternType[] = ['heart', 'smile', 'diamond', 'spiral', 'butterfly'];
-            for(let i=0; i<6; i++) {
+            const patterns: PatternType[] = ['heart', 'smile', 'diamond', 'spiral', 'butterfly', 'lantern', 'fish'];
+            for(let i=0; i<8; i++) {
                 setTimeout(() => {
                    createShell(random(w*0.1, w*0.9), h*0.3, undefined, patterns[i%patterns.length], {
                         color: 'random', size: 'large', shape: 'square', effect: 'classic'
                    });
-                }, i * 300);
+                }, i * 250);
             }
         }, 1200);
 
@@ -239,8 +240,8 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
                  color: 'gold', size: 'large', shape: 'square', effect: 'classic'
              });
              // Flanking crowns
-             createShell(w*0.2, h*0.3, undefined, 'crown', { color: 'silver', size: 'medium', shape: 'square', effect: 'classic'});
-             createShell(w*0.8, h*0.3, undefined, 'crown', { color: 'silver', size: 'medium', shape: 'square', effect: 'classic'});
+             createShell(w*0.2, h*0.3, undefined, 'lantern', { color: 'red', size: 'medium', shape: 'square', effect: 'classic'});
+             createShell(w*0.8, h*0.3, undefined, 'lantern', { color: 'red', size: 'medium', shape: 'square', effect: 'classic'});
         }, 4500);
 
         // 5. Whiteout
@@ -339,7 +340,9 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
       settings: FireworkSettings = defaultSettings
   ) => {
     if (!canvasRef.current) return;
-    const startX = canvasRef.current.width / 2 + random(-100, 100); 
+    // START POSITION RANDOMIZATION
+    // Randomize across the entire width of the bottom (5% to 95%)
+    const startX = random(canvasRef.current.width * 0.05, canvasRef.current.width * 0.95);
     const startY = canvasRef.current.height;
 
     const heightDiff = startY - targetY;
@@ -417,7 +420,7 @@ const FireworksCanvas = forwardRef<FireworksCanvasHandle, {}>((props, ref) => {
       }
       
       // Chance to fire a random pattern on click
-      const patterns: PatternType[] = ['heart', 'star', 'smile', 'spiral', 'butterfly', 'music'];
+      const patterns: PatternType[] = ['heart', 'star', 'smile', 'spiral', 'butterfly', 'music', 'lantern', 'coin', 'fish', 'snowflake'];
       const pattern: PatternType | undefined = Math.random() > 0.7 
           ? patterns[Math.floor(Math.random()*patterns.length)] 
           : undefined;
